@@ -1,0 +1,144 @@
+/* Container styles */
+.machinary-container {
+  @apply bg-white rounded-lg shadow-lg p-6;
+}
+
+.machinary-header {
+  @apply flex items-center justify-between mb-6;
+}
+
+.section-title {
+  @apply text-2xl font-bold text-black;
+}
+
+/* Button styles */
+.primary-button {
+  @apply bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 shadow-md transition-colors;
+}
+
+.action-button {
+  @apply p-2 rounded-lg transition-colors;
+}
+
+/* Table styles */
+.table-wrapper {
+  @apply overflow-x-auto;
+}
+
+.data-table {
+  @apply w-full border-collapse;
+}
+
+.data-table thead {
+  @apply bg-gray-50;
+}
+
+.data-table th {
+  @apply px-4 py-3 text-left text-sm font-medium text-black;
+}
+
+.data-table td {
+  @apply px-4 py-3 border-t border-gray-200 text-sm text-gray-600;
+}
+
+.data-table tr:hover {
+  @apply bg-gray-50;
+}
+
+/* Badge styles */
+.badge {
+  @apply px-3 py-1 rounded-full text-sm font-medium;
+}
+
+.badge-blue {
+  @apply bg-blue-100 text-blue-800;
+}
+
+.badge-green {
+  @apply bg-green-100 text-green-800;
+}
+
+/* Modal styles */
+.modal-overlay {
+  @apply fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50;
+}
+
+.modal-content {
+  @apply bg-white p-6 rounded-lg max-w-2xl w-full;
+}
+
+.modal-title {
+  @apply text-xl font-bold text-black mb-4;
+}
+
+.modal-grid {
+  @apply grid grid-cols-2 gap-4;
+}
+
+.modal-field {
+  @apply space-y-1;
+}
+
+.modal-label {
+  @apply font-medium text-black;
+}
+
+.modal-actions {
+  @apply mt-6 flex justify-end space-x-3;
+}
+
+.modal-button {
+  @apply px-4 py-2 rounded-lg;
+}
+
+.modal-button-cancel {
+  @apply bg-gray-200 text-black hover:bg-gray-300;
+}
+
+.modal-button-submit {
+  @apply bg-indigo-600 text-white hover:bg-indigo-700;
+}
+
+/* Pagination styles (if needed) */
+.pagination-controls {
+  @apply flex justify-center mt-6 space-x-2;
+}
+
+.pagination-button {
+  @apply px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50;
+}
+
+.page-number {
+  @apply px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50;
+}
+
+.page-number.active {
+  @apply bg-indigo-600 text-white border-indigo-600;
+}
+
+/* Form input styles */
+.form-input {
+  @apply w-full p-2 border rounded-md text-black focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500;
+}
+
+.form-select {
+  @apply w-full p-2 border rounded-md text-black focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500;
+}
+
+/* Status indicators */
+.status-badge {
+  @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-sm font-medium;
+}
+
+/* Details view styles */
+.details-grid {
+  @apply grid grid-cols-2 gap-4 mt-4;
+}
+
+.details-label {
+  @apply font-medium text-black;
+}
+
+.details-value {
+  @apply text-gray-600;
+}
