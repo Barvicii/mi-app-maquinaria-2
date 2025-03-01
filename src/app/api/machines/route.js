@@ -17,7 +17,7 @@ export async function GET() {
         console.error('Error fetching machines:', error);
         return NextResponse.json(
             { 
-                error: 'Error al cargar las máquinas', 
+                error: 'Error loading machines', 
                 details: error.message 
             }, 
             { status: 500 }
@@ -27,10 +27,28 @@ export async function GET() {
 
 export async function POST(request) {
     try {
+        // Ensure database connection
         await dbConnect();
-        const data = await request.json();
 
-        // Sanitize input data
+        // Parse incoming JSON data
+        const data = await request.json();
+        console.log('Received machine data:', data);
+
+        // Validate required fields
+        if (!data.model || !data.brand) {
+            return NextResponse.json(
+                { 
+                    error: 'Model and Brand are required fields',
+                    details: {
+                        model: data.model,
+                        brand: data.brand
+                    }
+                }, 
+                { status: 400 }
+            );
+        }
+
+        // Sanitize input data - ensure all nested objects have default empty values
         const sanitizedData = {
             model: data.model || '',
             brand: data.brand || '',
@@ -77,9 +95,15 @@ export async function POST(request) {
             }
         };
 
+        // Create new machine
         const machine = new Machine(sanitizedData);
+        
+        // Save machine to database
         const savedMachine = await machine.save();
 
+        console.log('Machine saved successfully:', savedMachine);
+
+        // Return saved machine with 201 Created status
         return NextResponse.json(savedMachine, { 
             status: 201,
             headers: {
@@ -87,10 +111,13 @@ export async function POST(request) {
             }
         });
     } catch (error) {
-        console.error('Error creando máquina:', error);
+        // Log full error for server-side debugging
+        console.error('Error creating machine:', error);
+
+        // Return a structured error response
         return NextResponse.json(
             { 
-                error: 'Error al crear la máquina', 
+                error: 'Error creating machine',
                 details: error.message,
                 validationErrors: error.errors 
             }, 
@@ -101,11 +128,31 @@ export async function POST(request) {
 
 export async function PUT(request, { params }) {
     try {
+        // Ensure database connection
         await dbConnect();
-        const { id } = params;
-        const data = await request.json();
 
-        // Sanitize input data similar to POST method
+        // Get machine ID from the request
+        const { id } = params;
+
+        // Parse incoming JSON data
+        const data = await request.json();
+        console.log('Received update data for machine:', id, data);
+
+        // Validate required fields
+        if (!data.model || !data.brand) {
+            return NextResponse.json(
+                { 
+                    error: 'Model and Brand are required fields',
+                    details: {
+                        model: data.model,
+                        brand: data.brand
+                    }
+                }, 
+                { status: 400 }
+            );
+        }
+
+        // Sanitize input data - ensure all nested objects have default empty values
         const sanitizedData = {
             model: data.model || '',
             brand: data.brand || '',
@@ -152,18 +199,26 @@ export async function PUT(request, { params }) {
             }
         };
 
-        const updatedMachine = await Machine.findByIdAndUpdate(id, sanitizedData, {
-            new: true,  // Return updated document
-            runValidators: true  // Run model validation on update
-        });
+        // Update machine in database
+        const updatedMachine = await Machine.findByIdAndUpdate(
+            id, 
+            sanitizedData, 
+            { 
+                new: true,  // Return updated document
+                runValidators: true  // Run model validation
+            }
+        );
 
         if (!updatedMachine) {
             return NextResponse.json(
-                { error: 'Máquina no encontrada' }, 
+                { error: 'Machine not found' }, 
                 { status: 404 }
             );
         }
 
+        console.log('Machine updated successfully:', updatedMachine);
+
+        // Return updated machine
         return NextResponse.json(updatedMachine, { 
             status: 200,
             headers: {
@@ -171,11 +226,15 @@ export async function PUT(request, { params }) {
             }
         });
     } catch (error) {
-        console.error('Error actualizando máquina:', error);
+        // Log full error for server-side debugging
+        console.error('Error updating machine:', error);
+
+        // Return a structured error response
         return NextResponse.json(
             { 
-                error: 'Error al actualizar la máquina', 
-                details: error.message 
+                error: 'Error updating machine',
+                details: error.message,
+                validationErrors: error.errors 
             }, 
             { status: 500 }
         );
@@ -191,23 +250,23 @@ export async function DELETE(request, { params }) {
 
         if (!deletedMachine) {
             return NextResponse.json(
-                { error: 'Máquina no encontrada' }, 
+                { error: 'Machine not found' }, 
                 { status: 404 }
             );
         }
 
         return NextResponse.json(
             { 
-                message: 'Máquina eliminada correctamente', 
+                message: 'Machine deleted successfully', 
                 deletedMachine 
             }, 
             { status: 200 }
         );
     } catch (error) {
-        console.error('Error eliminando máquina:', error);
+        console.error('Error deleting machine:', error);
         return NextResponse.json(
             { 
-                error: 'Error al eliminar la máquina', 
+                error: 'Error deleting machine', 
                 details: error.message 
             }, 
             { status: 500 }

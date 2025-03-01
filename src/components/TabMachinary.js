@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { PlusCircle, Edit2, Trash2, Eye } from 'lucide-react';
+import { PlusCircle, Edit2, Trash2, Eye, AlertTriangle, RefreshCw } from 'lucide-react';
 import MachineModal from './MachineModal';
 import DetailsModal from './DetailsModal';
 import '../styles/tables.css';
+import Notification from './Notification';
 
 const TabMachinary = () => {
     const [machines, setMachines] = useState([]);
@@ -14,31 +15,38 @@ const TabMachinary = () => {
     const [modalType, setModalType] = useState('');
     const [selectedMachine, setSelectedMachine] = useState(null);
     const [showDetails, setShowDetails] = useState(false);
+    const [showNotification, setShowNotification] = useState(false);
+    const [notificationMessage, setNotificationMessage] = useState('');
+    const [isRefreshing, setIsRefreshing] = useState(false);
 
     const fetchMachines = async () => {
         try {
             setLoading(true);
+            setIsRefreshing(true);
+            setError(null);
+            
+            console.log('Fetching machines...');
+            
             const response = await fetch('/api/machines', {
                 method: 'GET',
                 headers: {
-                    'Cache-Control': 'no-cache'
+                    'Cache-Control': 'no-store'
                 }
             });
             
             if (!response.ok) {
-                const errorText = await response.text();
-                throw new Error(`Error loading machines: ${response.status} ${errorText}`);
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(`Error loading machines: ${response.status} ${errorData.message || ''}`);
             }
             
             const data = await response.json();
             console.log('Machines loaded:', data);
             setMachines(data);
-            setError(null);
         } catch (error) {
-            console.error('Error:', error);
-            setError(error.message);
+            console.error('Error fetching machines:', error);
+            setError(error.message || 'Failed to load machines');
             
-            // Fallback to localStorage if API fails
+            // Try to load from localStorage as a fallback
             try {
                 const storedMachines = JSON.parse(localStorage.getItem('maquinas') || '[]');
                 if (storedMachines.length > 0) {
@@ -50,12 +58,18 @@ const TabMachinary = () => {
             }
         } finally {
             setLoading(false);
+            setIsRefreshing(false);
         }
     };
 
     useEffect(() => {
         fetchMachines();
     }, []);
+
+    const handleCloseModal = () => {
+        setShowModal(false);
+        setSelectedMachine(null);
+    };
 
     const handleDelete = async (id) => {
         if (window.confirm('Are you sure you want to delete this machine?')) {
@@ -65,25 +79,20 @@ const TabMachinary = () => {
                 });
                 
                 if (!response.ok) {
-                    const errorData = await response.json();
+                    const errorData = await response.json().catch(() => ({}));
                     throw new Error(errorData.error || 'Error deleting machine');
                 }
                 
-                await fetchMachines();
-                alert('Machine deleted successfully');
-            } catch (error) {
-                console.error('Error:', error);
-                alert(error.message);
+                // Show notification
+                setNotificationMessage('Machine deleted successfully');
+                setShowNotification(true);
                 
-                // Fallback to localStorage if API fails
-                try {
-                    const storedMachines = JSON.parse(localStorage.getItem('maquinas') || '[]');
-                    const updatedMachines = storedMachines.filter(machine => machine.id !== id);
-                    localStorage.setItem('maquinas', JSON.stringify(updatedMachines));
-                    setMachines(updatedMachines);
-                } catch (localError) {
-                    console.error('Failed to update localStorage:', localError);
-                }
+                // Refresh the list
+                await fetchMachines();
+            } catch (error) {
+                console.error('Error deleting machine:', error);
+                setNotificationMessage('Failed to delete machine: ' + error.message);
+                setShowNotification(true);
             }
         }
     };
@@ -94,13 +103,15 @@ const TabMachinary = () => {
             
             // Create a copy of the data without _id for new machines
             const dataToSubmit = { ...machineData };
-            if (modalType !== 'edit' && dataToSubmit._id) {
+            if (modalType === 'new' && dataToSubmit._id) {
                 delete dataToSubmit._id;
             }
             
             const url = modalType === 'edit' ? `/api/machines/${selectedMachine._id}` : '/api/machines';
             const method = modalType === 'edit' ? 'PUT' : 'POST';
     
+            console.log(`Making ${method} request to ${url}`);
+            
             const response = await fetch(url, {
                 method,
                 headers: { 'Content-Type': 'application/json' },
@@ -108,16 +119,21 @@ const TabMachinary = () => {
             });
 
             if (!response.ok) {
-                const errorData = await response.json();
+                const errorData = await response.json().catch(() => ({}));
                 throw new Error(errorData.error || `Error ${modalType === 'edit' ? 'updating' : 'creating'} machine`);
             }
 
             const result = await response.json();
             console.log('API response:', result);
             
-            await fetchMachines();
+            // Show notification
+            setNotificationMessage(`Machine ${modalType === 'edit' ? 'updated' : 'created'} successfully`);
+            setShowNotification(true);
+            
+            // Close modal and refresh data
             setShowModal(false);
             setSelectedMachine(null);
+            await fetchMachines();
             
             // Also update localStorage as backup
             try {
@@ -143,22 +159,44 @@ const TabMachinary = () => {
             }
             
         } catch (error) {
-            console.error('Error:', error);
-            alert(error.message);
+            console.error('Error saving machine:', error);
+            setNotificationMessage('Error: ' + error.message);
+            setShowNotification(true);
         }
     };
 
+    // Calculate pagination
     const indexOfLastItem = currentPage * itemsPerPage;
     const indexOfFirstItem = indexOfLastItem - itemsPerPage;
     const currentItems = machines.slice(indexOfFirstItem, indexOfLastItem);
     const totalPages = Math.ceil(machines.length / itemsPerPage);
 
-    if (loading) {
-        return <div className="loading-container">Loading...</div>;
+    const handlePrevious = () => {
+        setCurrentPage(prev => Math.max(prev - 1, 1));
+    };
+
+    const handleNext = () => {
+        setCurrentPage(prev => Math.min(prev + 1, totalPages));
+    };
+
+    const paginate = (pageNumber) => setCurrentPage(pageNumber);
+
+    if (loading && !isRefreshing) {
+        return (
+            <div className="loading-container">
+                <div className="loading-text">Loading machines...</div>
+            </div>
+        );
     }
 
     return (
         <div className="machinary-container">
+            <Notification 
+                message={notificationMessage}
+                show={showNotification}
+                onClose={() => setShowNotification(false)}
+            />
+            
             <div className="machinary-header">
                 <h2 className="section-title">Machine Registry</h2>
                 <div className="flex items-center gap-4">
@@ -175,12 +213,30 @@ const TabMachinary = () => {
                         <PlusCircle className="button-icon" size={20} />
                         <span>New Machine</span>
                     </button>
+                    <button 
+                        onClick={fetchMachines}
+                        className="primary-button"
+                        disabled={isRefreshing}
+                    >
+                        {isRefreshing ? (
+                            <>
+                                <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                                Refreshing...
+                            </>
+                        ) : (
+                            <>
+                                <RefreshCw className="w-4 h-4 mr-2" />
+                                Refresh
+                            </>
+                        )}
+                    </button>
                 </div>
             </div>
 
             {error && (
                 <div className="error-message mb-4">
-                    <p>{error}</p>
+                    <AlertTriangle className="w-5 h-5 mr-2" />
+                    <span>{error}</span>
                 </div>
             )}
 
@@ -219,7 +275,7 @@ const TabMachinary = () => {
                                                         setSelectedMachine(machine);
                                                         setShowDetails(true);
                                                     }}
-                                                    className="action-button view-button"
+                                                    className="action-button view-button text-blue-600 hover:text-blue-800 p-2"
                                                     title="View details"
                                                 >
                                                     <Eye className="button-icon" size={20} />
@@ -230,14 +286,14 @@ const TabMachinary = () => {
                                                         setModalType('edit');
                                                         setShowModal(true);
                                                     }}
-                                                    className="action-button edit-button"
+                                                    className="action-button edit-button text-green-600 hover:text-green-800 p-2"
                                                     title="Edit"
                                                 >
                                                     <Edit2 className="button-icon" size={20} />
                                                 </button>
                                                 <button
                                                     onClick={() => handleDelete(machine._id || machine.id)}
-                                                    className="action-button delete-button"
+                                                    className="action-button delete-button text-red-600 hover:text-red-800 p-2"
                                                     title="Delete"
                                                 >
                                                     <Trash2 className="button-icon" size={20} />
@@ -250,33 +306,35 @@ const TabMachinary = () => {
                         </table>
                     </div>
 
-                    <div className="pagination-controls">
-                        <button
-                            onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                            disabled={currentPage === 1}
-                            className="pagination-button"
-                        >
-                            Previous
-                        </button>
-                        <div className="page-numbers">
-                            {Array.from({ length: totalPages }, (_, i) => (
-                                <button
-                                    key={i + 1}
-                                    onClick={() => setCurrentPage(i + 1)}
-                                    className={`page-number ${currentPage === i + 1 ? 'active' : ''}`}
-                                >
-                                    {i + 1}
-                                </button>
-                            ))}
+                    {totalPages > 1 && (
+                        <div className="pagination-controls">
+                            <button
+                                onClick={handlePrevious}
+                                disabled={currentPage === 1}
+                                className="pagination-button"
+                            >
+                                Previous
+                            </button>
+                            <div className="page-numbers">
+                                {Array.from({ length: totalPages }, (_, i) => i + 1).map((number) => (
+                                    <button
+                                        key={number}
+                                        onClick={() => paginate(number)}
+                                        className={`page-number ${currentPage === number ? 'active' : ''}`}
+                                    >
+                                        {number}
+                                    </button>
+                                ))}
+                            </div>
+                            <button
+                                onClick={handleNext}
+                                disabled={currentPage === totalPages}
+                                className="pagination-button"
+                            >
+                                Next
+                            </button>
                         </div>
-                        <button
-                            onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                            disabled={currentPage === totalPages}
-                            className="pagination-button"
-                        >
-                            Next
-                        </button>
-                    </div>
+                    )}
                 </>
             )}
 
@@ -284,10 +342,7 @@ const TabMachinary = () => {
                 show={showModal}
                 type={modalType}
                 machine={selectedMachine}
-                onClose={() => {
-                    setShowModal(false);
-                    setSelectedMachine(null);
-                }}
+                onClose={handleCloseModal}
                 onSubmit={handleSubmit}
             />
 

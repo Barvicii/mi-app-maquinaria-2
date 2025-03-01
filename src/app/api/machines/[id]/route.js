@@ -22,10 +22,12 @@ export async function GET(request, { params }) {
 
         console.log('Machine found:', machine);
         return NextResponse.json(machine);
-
     } catch (error) {
         console.error('Error finding machine:', error);
-        return NextResponse.json({ error: error.message }, { status: 500 });
+        return NextResponse.json({ 
+            error: error.message,
+            stack: error.stack 
+        }, { status: 500 });
     }
 }
 
@@ -35,12 +37,8 @@ export async function PUT(request, { params }) {
         const { id } = params;
         const data = await request.json();
         
-        // Convert string numeric values to numbers where appropriate
-        if (data.currentHours) {
-            data.currentHours = Number(data.currentHours);
-        }
-        
-        console.log('Updating machine:', id, data);
+        console.log('Updating machine:', id);
+        console.log('Update data:', JSON.stringify(data, null, 2));
         
         const machine = await Machine.findByIdAndUpdate(
             id,
@@ -56,12 +54,16 @@ export async function PUT(request, { params }) {
         }
 
         return NextResponse.json(machine);
-
     } catch (error) {
         console.error('Error updating machine:', error);
         return NextResponse.json({ 
             success: false, 
-            error: error.message 
+            error: error.message,
+            stack: error.stack,
+            validationErrors: error.errors ? Object.keys(error.errors).reduce((acc, key) => {
+                acc[key] = error.errors[key].message;
+                return acc;
+            }, {}) : null
         }, { status: 500 });
     }
 }
@@ -94,12 +96,12 @@ export async function DELETE(request, { params }) {
             message: 'Machine deleted successfully',
             data: machine
         });
-
     } catch (error) {
         console.error('Error deleting machine:', error);
         return NextResponse.json({ 
             success: false,
-            error: error.message || 'Error deleting machine'
+            error: error.message,
+            stack: error.stack
         }, { status: 500 });
     }
 }
