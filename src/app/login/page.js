@@ -1,56 +1,47 @@
 'use client';
 
 import React, { useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { signIn } from 'next-auth/react';
 import Link from 'next/link';
 
 export default function LoginPage() {
-  const [formData, setFormData] = useState({
-    email: '',
-    password: ''
-  });
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
-  
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const callbackUrl = searchParams.get('callbackUrl') || '/';
-  
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData(prevState => ({
-      ...prevState,
-      [name]: value
-    }));
-  };
-  
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError('');
     setLoading(true);
-    
+    setError('');
+
     try {
+      const formData = new FormData(e.currentTarget);
+      console.log('Attempting login...'); // Debug log
+
       const result = await signIn('credentials', {
-        redirect: false,
-        email: formData.email,
-        password: formData.password,
+        email: formData.get('email'),
+        password: formData.get('password'),
+        redirect: false
       });
-      
+
+      console.log('Login result:', result); // Debug log
+
       if (result?.error) {
+        console.log('Login error:', result.error); // Debug log
         setError(result.error);
       } else {
-        // Redirect to the callback URL or homepage
-        router.push(callbackUrl);
+        console.log('Login successful, redirecting...'); // Debug log
+        router.push('/tabmachinary');
       }
     } catch (error) {
       console.error('Login error:', error);
-      setError('An unexpected error occurred. Please try again.');
+      setError('An error occurred');
     } finally {
       setLoading(false);
     }
   };
-  
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-100">
       <div className="bg-white p-8 rounded-lg shadow-lg w-full max-w-md">
@@ -76,8 +67,6 @@ export default function LoginPage() {
             <input 
               type="email" 
               name="email" 
-              value={formData.email}
-              onChange={handleChange}
               className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" 
               placeholder="Enter your email"
               required
@@ -89,8 +78,6 @@ export default function LoginPage() {
             <input 
               type="password" 
               name="password"
-              value={formData.password}
-              onChange={handleChange}
               className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" 
               placeholder="Enter your password"
               required
@@ -102,7 +89,7 @@ export default function LoginPage() {
             className="w-full bg-indigo-600 text-white py-2 rounded-lg hover:bg-indigo-700 transition"
             disabled={loading}
           >
-            {loading ? 'Logging in...' : 'Login'}
+            {loading ? 'Loading...' : 'Login'}
           </button>
         </form>
         

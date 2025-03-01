@@ -1,89 +1,82 @@
 import NextAuth from 'next-auth';
 import CredentialsProvider from 'next-auth/providers/credentials';
+import bcrypt from 'bcryptjs';
 import dbConnect from '@/lib/dbConnect';
 import User from '@/models/User';
 
-export const authOptions = {
+const handler = NextAuth({
   providers: [
     CredentialsProvider({
       name: 'Credentials',
-      credentials: {
-        email: { label: "Email", type: "email" },
-        password: { label: "Password", type: "password" }
-      },
       async authorize(credentials) {
-        if (!credentials?.email || !credentials?.password) {
-          throw new Error('Please enter an email and password');
+        try {
+          console.log('Starting authorization...'); // Debug log
+          await dbConnect();
+
+          const user = await User.findOne({ email: credentials.email })
+            .select('+password');
+
+          console.log('User found:', user ? 'Yes' : 'No'); // Debug log
+
+          if (!user) {
+            throw new Error('Invalid credentials');
+          }
+
+          const isValid = await bcrypt.compare(
+            credentials.password,
+            user.password
+          );
+
+          console.log('Password valid:', isValid); // Debug log
+
+          if (!isValid) {
+            throw new Error('Invalid credentials');
+          }
+
+          console.log('Authorization successful'); // Debug log
+          
+          return {
+            id: user._id.toString(),
+            email: user.email,
+            role: user.role
+          };
+        } catch (error) {
+          console.error('Auth error:', error);
+          return null;
         }
-
-        await dbConnect();
-
-        // Find user by email
-        const user = await User.findOne({ email: credentials.email }).select('+password');
-        
-        if (!user) {
-          throw new Error('No user found with this email');
-        }
-
-        // Check if the account is active
-        if (!user.isActive) {
-          throw new Error('This account has been deactivated. Please contact an administrator.');
-        }
-
-        // Check if the password matches
-        const isPasswordCorrect = await user.comparePassword(credentials.password);
-        
-        if (!isPasswordCorrect) {
-          throw new Error('Invalid credentials');
-        }
-
-        // Update last login timestamp
-        user.lastLogin = new Date();
-        await user.save({ validateBeforeSave: false });
-
-        return {
-          id: user._id.toString(),
-          email: user.email,
-          name: user.name,
-          role: user.role,
-          organization: user.organization,
-          operatorId: user.operatorId ? user.operatorId.toString() : null
-        };
       }
     })
   ],
+  session: {
+    strategy: "jwt",
+    maxAge: 24 * 60 * 60,
+  },
   callbacks: {
     async jwt({ token, user }) {
+      console.log('JWT Callback - User:', user ? 'Present' : 'Missing'); // Debug log
       if (user) {
         token.id = user.id;
         token.role = user.role;
-        token.organization = user.organization;
-        token.operatorId = user.operatorId;
       }
       return token;
     },
     async session({ session, token }) {
+      console.log('Session Callback - Token:', token ? 'Present' : 'Missing'); // Debug log
       if (token) {
         session.user.id = token.id;
         session.user.role = token.role;
-        session.user.organization = token.organization;
-        session.user.operatorId = token.operatorId;
       }
       return session;
-    }
+    },
+    async redirect({ url, baseUrl }) {
+      // Permitir que el cliente maneje la redirección
+      return url.startsWith(baseUrl) ? url : baseUrl
+    },
   },
   pages: {
-    signIn: '/login',
-    signOut: '/login',
-    error: '/login',
+    signIn: '/login'
   },
-  session: {
-    strategy: 'jwt',
-    maxAge: 24 * 60 * 60, // 24 hours
-  },
-  secret: process.env.NEXTAUTH_SECRET || 'your-secret-key-change-this-in-production',
-  debug: process.env.NODE_ENV === 'development',
-};
+  debug: true
+});
 
-const handler = NextAuth(authOptions);
 export { handler as GET, handler as POST };
