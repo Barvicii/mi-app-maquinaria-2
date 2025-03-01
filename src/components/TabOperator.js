@@ -1,41 +1,29 @@
-// components/TabOperator.js
 import React, { useState, useEffect } from 'react';
 import { Trash2, Eye, PlusCircle, PencilLine } from 'lucide-react';
 import ModalNewOperator from './ModalNewOperator';
-import '../styles/newoperator.css';
-
+import '../styles/tables.css';
+import DetailsModal from './DetailsModal';
 
 const TabOperator = () => {
   const [operators, setOperators] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [currentOperator, setCurrentOperator] = useState(null);
-  const [selectedOperator, setSelectedOperator] = useState(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage] = useState(10);
   const [showDetails, setShowDetails] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [selectedOperator, setSelectedOperator] = useState(null);
 
-  // Initial state for new operator
-  const initialOperatorState = {
-    nombre: '',
-    apellido: '',
-    telefono: '',
-    email: '',
-    tipo: '',
-    licencia: '',
-    especialidad: '',
-    fechaIngreso: new Date().toISOString().split('T')[0]
-  };
-
+  // Fetch operators
   const fetchOperators = async () => {
     try {
+      setLoading(true);
       const response = await fetch('/api/operators');
-      if (!response.ok) {
-        throw new Error('Error fetching operators');
-      }
+      if (!response.ok) throw new Error('Error fetching operators');
       const data = await response.json();
-      setOperators(data.data || []);
-    } catch (err) {
-      setError(err.message);
+      setOperators(data);
+    } catch (error) {
+      console.error('Error loading operators:', error);
     } finally {
       setLoading(false);
     }
@@ -45,33 +33,13 @@ const TabOperator = () => {
     fetchOperators();
   }, []);
 
-  const handleDelete = async (id) => {
-    if (window.confirm('Are you sure you want to delete this operator?')) {
-      try {
-        const response = await fetch(`/api/operators/${id}`, {
-          method: 'DELETE',
-        });
-        if (!response.ok) {
-          throw new Error('Error deleting operator');
-        }
-        await fetchOperators(); // Refresh list after deletion
-      } catch (err) {
-        console.error('Delete error:', err);
-        alert('Error deleting operator');
-      }
-    }
+  // Clear form when closing modal
+  const handleCloseModal = () => {
+    setShowModal(false);
+    setCurrentOperator(null);
   };
 
-  const handleView = (operator) => {
-    setSelectedOperator(operator);
-    setShowDetails(true);
-  };
-
-  const handleEdit = (operator) => {
-    setCurrentOperator(operator);
-    setShowModal(true);
-  };
-
+  // Handle submit
   const handleSubmit = async (formData) => {
     try {
       const url = currentOperator 
@@ -85,158 +53,201 @@ const TabOperator = () => {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(formData),
+        body: JSON.stringify({
+          ...formData,
+          fechaIngreso: formData.fechaIngreso || new Date().toISOString().split('T')[0]
+        }),
       });
 
-      if (!response.ok) {
-        throw new Error('Error saving operator');
-      }
-
-      // Reset state and refresh list
-      setShowModal(false);
-      setCurrentOperator(null);
-      await fetchOperators();
-
-    } catch (err) {
-      console.error('Submit error:', err);
-      alert('Error saving operator');
+      if (!response.ok) throw new Error('Error saving operator');
+      
+      await fetchOperators(); // Refresh the list
+      handleCloseModal();
+    } catch (error) {
+      console.error('Submit error:', error);
+      throw new Error('Error saving operator');
     }
   };
 
-  if (loading) return <div className="text-center p-4">Loading...</div>;
-  if (error) return <div className="text-center text-red-600 p-4">Error: {error}</div>;
+  // Calculate pagination
+  const indexOfLastItem = currentPage * itemsPerPage;
+  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+  const currentItems = operators.slice(indexOfFirstItem, indexOfLastItem);
+  const totalPages = Math.ceil(operators.length / itemsPerPage);
+
+  const handlePrevious = () => {
+    setCurrentPage(prev => Math.max(prev - 1, 1));
+  };
+
+  const handleNext = () => {
+    setCurrentPage(prev => Math.min(prev + 1, totalPages));
+  };
+
+  const paginate = (pageNumber) => setCurrentPage(pageNumber);
+
+  if (loading) {
+    return (
+      <div className="loading-container">
+        <div className="loading-text">Loading operators...</div>
+      </div>
+    );
+  }
 
   return (
     <div className="machinary-container">
       <div className="machinary-header">
-        <h2 className="section-title">Operator and Technician Management</h2>
-        <button
-          onClick={() => {
-            setCurrentOperator(null);
-            setShowModal(true);
-          }}
-          className="primary-button flex items-center gap-2"
-        >
-          <PlusCircle className="w-5 h-5" />
-          <span>New Operator/Technician</span>
-        </button>
+        <h2 className="section-title">Operator & Technician Management</h2>
+        <div className="flex items-center gap-4">
+          <div className="pagination-info">
+            Showing {indexOfFirstItem + 1}-{Math.min(indexOfLastItem, operators.length)} of {operators.length}
+          </div>
+          <button
+            onClick={() => {
+              setCurrentOperator(null);
+              setShowModal(true);
+            }}
+            className="primary-button"
+          >
+            <PlusCircle className="button-icon" size={20} />
+            <span>New Operator/Technician</span>
+          </button>
+        </div>
       </div>
 
-      <div className="table-wrapper">
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>Type</th>
-              <th>Phone</th>
-              <th>Email</th>
-              <th>Start Date</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {operators.map((operator) => (
-              <tr key={operator._id}>
-                <td>{`${operator.nombre} ${operator.apellido}`}</td>
-                <td>
-                  <span className={`badge ${operator.tipo === 'operator' ? 'badge-blue' : 'badge-green'}`}>
-                    {operator.tipo === 'operator' ? 'Operator' : 'Technician'}
-                  </span>
-                </td>
-                <td>{operator.telefono || '-'}</td>
-                <td>{operator.email || '-'}</td>
-                <td>{new Date(operator.fechaIngreso).toLocaleDateString()}</td>
-                <td>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => handleView(operator)}
-                      className="action-button text-blue-600 hover:text-blue-800"
-                      title="View details"
-                    >
-                      <Eye className="w-5 h-5" />
-                    </button>
-                    <button
-                      onClick={() => handleEdit(operator)}
-                      className="action-button text-green-600 hover:text-green-800"
-                      title="Edit"
-                    >
-                      <PencilLine className="w-5 h-5" />
-                    </button>
-                    <button
-                      onClick={() => handleDelete(operator._id)}
-                      className="action-button text-red-600 hover:text-red-800"
-                      title="Delete"
-                    >
-                      <Trash2 className="w-5 h-5" />
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      {operators.length === 0 ? (
+        <div className="empty-message">No operators available.</div>
+      ) : (
+        <>
+          <div className="table-wrapper">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th className="table-cell text-left">Name</th>
+                  <th className="table-cell text-left">Type</th>
+                  <th className="table-cell text-left">Phone</th>
+                  <th className="table-cell text-left">Email</th>
+                  <th className="table-cell text-left">Start Date</th>
+                  <th className="table-cell text-left">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {currentItems.map((operator) => (
+                  <tr key={operator._id} className="table-row">
+                    <td className="table-cell">
+                      {`${operator.nombre} ${operator.apellido}`}
+                    </td>
+                    <td className="table-cell">
+                      <span className={`status-badge ${
+                        operator.tipo === 'operator'
+                          ? 'bg-blue-100 text-blue-800'
+                          : 'bg-green-100 text-green-800'
+                      }`}>
+                        {operator.tipo === 'operator' ? 'Operator' : 'Technician'}
+                      </span>
+                    </td>
+                    <td className="table-cell">{operator.telefono || '-'}</td>
+                    <td className="table-cell">{operator.email || '-'}</td>
+                    <td className="table-cell">
+                      {operator.fechaIngreso ? new Date(operator.fechaIngreso).toLocaleDateString() : '-'}
+                    </td>
+                    <td className="table-cell">
+                      <div className="table-actions">
+                        <button
+                          onClick={() => {
+                            setSelectedOperator(operator);
+                            setShowDetails(true);
+                          }}
+                          className="action-button view-button text-blue-600 hover:text-blue-800 p-2"
+                          title="View details"
+                        >
+                          <Eye className="button-icon" size={20} />
+                        </button>
+                        <button
+                          onClick={() => {
+                            setCurrentOperator({
+                              ...operator,
+                              fechaIngreso: operator.fechaIngreso?.split('T')[0]
+                            });
+                            setShowModal(true);
+                          }}
+                          className="action-button edit-button text-green-600 hover:text-green-800 p-2"
+                          title="Edit"
+                        >
+                          <PencilLine className="button-icon" size={20} />
+                        </button>
+                        <button
+                          onClick={() => handleDelete(operator._id)}
+                          className="action-button delete-button text-red-600 hover:text-red-800 p-2"
+                          title="Delete"
+                        >
+                          <Trash2 className="button-icon" size={20} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="pagination-controls">
+            <button
+              onClick={handlePrevious}
+              disabled={currentPage === 1}
+              className="pagination-button"
+            >
+              Previous
+            </button>
+            <div className="page-numbers">
+              {Array.from({ length: totalPages }, (_, i) => i + 1).map((number) => (
+                <button
+                  key={number}
+                  onClick={() => paginate(number)}
+                  className={`page-number ${currentPage === number ? 'active' : ''}`}
+                >
+                  {number}
+                </button>
+              ))}
+            </div>
+            <button
+              onClick={handleNext}
+              disabled={currentPage === totalPages}
+              className="pagination-button"
+            >
+              Next
+            </button>
+          </div>
+        </>
+      )}
 
       <ModalNewOperator
         show={showModal}
-        onClose={() => {
-          setShowModal(false);
-          setCurrentOperator(null);
-        }}
+        onClose={handleCloseModal}
         onSubmit={handleSubmit}
         currentOperator={currentOperator}
-        initialData={currentOperator || initialOperatorState}
+        initialData={currentOperator || {
+          nombre: '',
+          apellido: '',
+          tipo: '',
+          telefono: '',
+          email: '',
+          fechaIngreso: new Date().toISOString().split('T')[0],
+          licencia: '',
+          especialidad: '',
+          activo: true
+        }}
       />
 
-      {showDetails && selectedOperator && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white p-6 rounded-lg max-w-2xl w-full">
-            <h3 className="text-xl font-bold mb-4">
-              {selectedOperator.tipo === 'operator' ? 'Operator' : 'Technician'} Details
-            </h3>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <p className="font-medium">Full Name:</p>
-                <p>{`${selectedOperator.nombre} ${selectedOperator.apellido}`}</p>
-              </div>
-              <div>
-                <p className="font-medium">Type:</p>
-                <p>{selectedOperator.tipo === 'operator' ? 'Operator' : 'Technician'}</p>
-              </div>
-              <div>
-                <p className="font-medium">Phone:</p>
-                <p>{selectedOperator.telefono || '-'}</p>
-              </div>
-              <div>
-                <p className="font-medium">Email:</p>
-                <p>{selectedOperator.email || '-'}</p>
-              </div>
-              <div>
-                <p className="font-medium">Start Date:</p>
-                <p>{new Date(selectedOperator.fechaIngreso).toLocaleDateString()}</p>
-              </div>
-              {selectedOperator.tipo === 'operator' ? (
-                <div>
-                  <p className="font-medium">License Number:</p>
-                  <p>{selectedOperator.licencia || '-'}</p>
-                </div>
-              ) : (
-                <div>
-                  <p className="font-medium">Specialty:</p>
-                  <p>{selectedOperator.especialidad || '-'}</p>
-                </div>
-              )}
-            </div>
-            <div className="mt-6 flex justify-end">
-              <button
-                onClick={() => setShowDetails(false)}
-                className="px-4 py-2 bg-gray-200 text-black rounded-lg hover:bg-gray-300"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
+      {showDetails && (
+        <DetailsModal
+          show={showDetails}
+          onClose={() => {
+            setShowDetails(false);
+            setSelectedOperator(null);
+          }}
+          data={selectedOperator}
+          type="operator"
+        />
       )}
     </div>
   );

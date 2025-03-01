@@ -1,87 +1,92 @@
 import { NextResponse } from 'next/server';
-import dbConnect from '@/lib/mongodb';
+import connectDB from '@/lib/mongodb';
 import Operator from '@/models/Operator';
 
 export async function GET(request, { params }) {
   try {
-    await dbConnect();
+    await connectDB();
     const { id } = params;
-
-    const operator = await Operator.findById(id);
-    if (!operator) {
-      return NextResponse.json({
-        success: false,
-        error: 'Operator not found'
-      }, { status: 404 });
+    
+    if (!id) {
+      return NextResponse.json(
+        { error: 'Operator ID is required' },
+        { status: 400 }
+      );
     }
-
-    return NextResponse.json({
-      success: true,
-      data: operator
-    });
+    
+    const operator = await Operator.findById(id);
+    
+    if (!operator) {
+      return NextResponse.json(
+        { error: 'Operator not found' },
+        { status: 404 }
+      );
+    }
+    
+    return NextResponse.json(operator);
   } catch (error) {
-    console.error('Error fetching operator:', error);
-    return NextResponse.json({
-      success: false,
-      error: error.message
-    }, { status: 500 });
+    console.error('GET operator error:', error);
+    return NextResponse.json(
+      { error: 'Error fetching operator', message: error.message },
+      { status: 500 }
+    );
   }
 }
 
-export async function PATCH(request, { params }) {
+export async function PUT(request, { params }) {
   try {
-    await dbConnect();
+    await connectDB();
     const { id } = params;
-    const updates = await request.json();
-
+    const data = await request.json();
+    
+    // Format date if provided
+    if (data.fechaIngreso) {
+      data.fechaIngreso = new Date(data.fechaIngreso);
+    }
+    
     const operator = await Operator.findByIdAndUpdate(
       id,
-      { $set: updates },
+      data,
       { new: true, runValidators: true }
     );
-
+    
     if (!operator) {
-      return NextResponse.json({
-        success: false,
-        error: 'Operator not found'
-      }, { status: 404 });
+      return NextResponse.json(
+        { error: 'Operator not found' },
+        { status: 404 }
+      );
     }
-
-    return NextResponse.json({
-      success: true,
-      data: operator
-    });
+    
+    return NextResponse.json(operator);
   } catch (error) {
-    console.error('Error updating operator:', error);
-    return NextResponse.json({
-      success: false,
-      error: error.message
-    }, { status: 500 });
+    console.error('PUT operator error:', error);
+    return NextResponse.json(
+      { error: 'Error updating operator', message: error.message },
+      { status: 500 }
+    );
   }
 }
 
 export async function DELETE(request, { params }) {
   try {
-    await dbConnect();
+    await connectDB();
     const { id } = params;
-
+    
     const operator = await Operator.findByIdAndDelete(id);
+    
     if (!operator) {
-      return NextResponse.json({
-        success: false,
-        error: 'Operator not found'
-      }, { status: 404 });
+      return NextResponse.json(
+        { error: 'Operator not found' },
+        { status: 404 }
+      );
     }
-
-    return NextResponse.json({
-      success: true,
-      message: 'Operator deleted successfully'
-    });
+    
+    return NextResponse.json({ message: 'Operator deleted successfully' });
   } catch (error) {
-    console.error('Error deleting operator:', error);
-    return NextResponse.json({
-      success: false,
-      error: error.message
-    }, { status: 500 });
+    console.error('DELETE operator error:', error);
+    return NextResponse.json(
+      { error: 'Error deleting operator', message: error.message },
+      { status: 500 }
+    );
   }
 }

@@ -1,61 +1,108 @@
+'use client';
+
 import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 
-
-
-const PreStartCheckForm = ({ prestartData, handlePrestartChange, handleSubmit }) => {
+const PreStartCheckForm = () => {
+  const router = useRouter();
+  const [showSuccess, setShowSuccess] = useState(false);
   const [operators, setOperators] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [prestartData, setPrestartData] = useState({
+    horasMaquina: '',
+    horasProximoService: '',
+    operador: '',
+    observaciones: '',
+    aceite: false,
+    agua: false,
+    neumaticos: false,
+    nivelCombustible: false,
+    lucesYAlarmas: false,
+    frenos: false,
+    extintores: false,
+    cinturonSeguridad: false,
+    fecha: new Date().toISOString(),
+    estado: 'OK'
+  });
 
   useEffect(() => {
-    const fetchOperators = async () => {
+    const loadOperators = async () => {
       try {
         const response = await fetch('/api/operators');
-        const result = await response.json();
-        
-        console.log('API Response:', result);
-        
-        if (!response.ok) {
-          throw new Error(result.error || 'Error al cargar operadores');
-        }
-
-        const onlyOperators = result.data.filter(op => {
-          console.log('Operator type:', op.tipo);
-          return op.tipo === 'operator';
-        });
-        
-        console.log('Filtered operators:', onlyOperators);
-        
-        setOperators(onlyOperators);
+        if (!response.ok) throw new Error('Error loading operators');
+        const data = await response.json();
+        setOperators(data);
       } catch (error) {
-        console.error('Error fetching operators:', error);
-        setError(error.message);
-      } finally {
-        setLoading(false);
+        console.error('Error:', error);
       }
     };
-  
-    fetchOperators();
+    loadOperators();
   }, []);
 
-  
+  const handleInputChange = (e) => {
+    const { name, type, checked, value } = e.target;
+    setPrestartData(prev => ({
+      ...prev,
+      [name]: type === 'checkbox' ? checked : value
+    }));
+  };
 
- // Modificación importante: añadir una verificación de tipo
- const handleChange = (e) => {
-  console.log('Tipo de handlePrestartChange:', typeof handlePrestartChange);
-  
-  // Verificación explícita del tipo de función
-  if (typeof handlePrestartChange === 'function') {
-    handlePrestartChange(e);
-  } else {
-    console.error('handlePrestartChange NO ES UNA FUNCIÓN VÁLIDA', handlePrestartChange);
-    
-    // Opcional: añadir un manejador de respaldo
-    console.warn('Usando manejador de respaldo');
-    const { name, value, type, checked } = e.target;
-    console.log(`Cambio de respaldo - ${name}: ${type === 'checkbox' ? checked : value}`);
-  }
-};
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      const allChecks = [
+        'aceite', 'agua', 'neumaticos', 'nivelCombustible',
+        'lucesYAlarmas', 'frenos', 'extintores', 'cinturonSeguridad'
+      ];
+      
+      const hasFailedChecks = allChecks.some(check => !prestartData[check]);
+      const estado = hasFailedChecks ? 'Requiere atención' : 'OK';
+
+      const dataToSubmit = {
+        ...prestartData,
+        estado,
+        fecha: new Date().toISOString()
+      };
+
+      const response = await fetch('/api/prestart', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(dataToSubmit),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Error saving prestart');
+      }
+
+      setShowSuccess(true);
+      setTimeout(() => {
+        setShowSuccess(false);
+        router.push('/dashboard');
+        setPrestartData({
+          horasMaquina: '',
+          horasProximoService: '',
+          operador: '',
+          observaciones: '',
+          aceite: false,
+          agua: false,
+          neumaticos: false,
+          nivelCombustible: false,
+          lucesYAlarmas: false,
+          frenos: false,
+          extintores: false,
+          cinturonSeguridad: false,
+          fecha: new Date().toISOString(),
+          estado: 'OK'
+        });
+      }, 2000);
+
+    } catch (error) {
+      console.error('Submit error:', error);
+      alert('Error saving prestart: ' + error.message);
+    }
+  };
 
   const checkItems = [
     { name: 'aceite', label: 'Nivel de Aceite' },
@@ -68,146 +115,107 @@ const PreStartCheckForm = ({ prestartData, handlePrestartChange, handleSubmit })
     { name: 'cinturonSeguridad', label: 'Cinturón de Seguridad' }
   ];
 
-  if (loading) {
-    return <div className="text-center">Cargando operadores...</div>;
-  }
-
-  if (error) {
-    return <div className="text-center text-red-600">Error: {error}</div>;
-  }
-
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      {/* Todos los inputs usan handleChange */}
-      <input
-        type="number"
-        name="horasMaquina"
-        value={prestartData?.horasMaquina || ''} 
-        onChange={handleChange}
-        // ... otros atributos
-      />
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="space-y-4">
+    <div className="relative">
+      {showSuccess && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white p-6 rounded-lg shadow-xl">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">
+              Operation Successful
+            </h3>
+            <p className="text-gray-600 mb-6">
+              The pre-start check has been saved successfully.
+            </p>
+          </div>
+        </div>
+      )}
+
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
-            <label className="block mb-1 text-gray-700">Horas de la Máquina</label>
+            <label className="block mb-1 text-black">Horas de la Máquina</label>
             <input
               type="number"
               name="horasMaquina"
-              value={prestartData?.horasMaquina || ''} 
-              onChange={handleChange} // Usa el nuevo manejador
-              className="w-full p-2 border rounded-md"
+              value={prestartData.horasMaquina}
+              onChange={handleInputChange}
+              className="w-full p-2 border rounded-md text-black"
               required
               placeholder="Ingrese las horas actuales"
             />
           </div>
 
-          <div className="space-y-3">
-            {checkItems.map(item => (
-              <div key={item.name} className="flex items-center space-x-2">
-                <input
-                  type="checkbox"
-                  id={item.name}
-                  name={item.name}
-                  checked={prestartData?.[item.name] || false}
-                  onChange={handleChange} // Usa el nuevo manejador
-                  className="w-5 h-5"
-                />
-                <label htmlFor={item.name} className="text-gray-700">
-                  {item.label}
-                </label>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="space-y-4">
           <div>
-            <label className="block mb-1 text-gray-700">Operador</label>
-            <select
-              name="operador"
-              value={prestartData?.operador || ''} 
-              onChange={handleChange} // Usa el nuevo manejador
-              className="w-full p-2 border rounded-md"
+            <label className="block mb-1 text-black">Horas Próximo Service</label>
+            <input
+              type="number"
+              name="horasProximoService"
+              value={prestartData.horasProximoService}
+              onChange={handleInputChange}
+              className="w-full p-2 border rounded-md text-black"
               required
-            >
-              <option value="">Seleccionar operador...</option>
-              {operators.map((op) => (
-                <option key={op._id} value={`${op.nombre} ${op.apellido}`}>
-                  {op.nombre} {op.apellido}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="block mb-1 text-gray-700">Observaciones</label>
-            <textarea
-              name="observaciones"
-              value={prestartData?.observaciones || ''} 
-              onChange={handleChange} // Usa el nuevo manejador
-              className="w-full p-2 border rounded-md"
-              rows={4}
-              placeholder="Ingrese sus observaciones aquí..."
+              placeholder="Ingrese las horas para el próximo service"
             />
           </div>
         </div>
-      </div>
 
-      <div className="flex justify-end mt-4">
+        <div>
+          <label className="block mb-1 text-black">Operador</label>
+          <select
+            name="operador"
+            value={prestartData.operador}
+            onChange={handleInputChange}
+            className="w-full p-2 border rounded-md text-black"
+            required
+          >
+            <option value="">Seleccionar operador...</option>
+            {operators.map((op) => (
+              <option key={op._id} value={`${op.nombre} ${op.apellido}`}>
+                {op.nombre} {op.apellido}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="space-y-3">
+          {checkItems.map(item => (
+            <div key={item.name} className="flex items-center space-x-2">
+              <input
+                type="checkbox"
+                id={item.name}
+                name={item.name}
+                checked={prestartData[item.name]}
+                onChange={handleInputChange}
+                className="w-5 h-5"
+              />
+              <label htmlFor={item.name} className="text-black">
+                {item.label}
+              </label>
+            </div>
+          ))}
+        </div>
+
+        <div>
+          <label className="block mb-1 text-black">Observaciones</label>
+          <textarea
+            name="observaciones"
+            value={prestartData.observaciones}
+            onChange={handleInputChange}
+            className="w-full p-2 border rounded-md text-black"
+            rows={4}
+            placeholder="Ingrese sus observaciones aquí..."
+          />
+        </div>
+
         <button
           type="submit"
-          className="bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700 shadow-md"
+          className="w-full bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700 shadow-md"
         >
           Guardar Pre-Start
         </button>
-      </div>
-    </form>
+      </form>
+    </div>
   );
 };
-const PreStartCheck = () => {
-  const [prestartData, setPrestartData] = useState({
-    horasMaquina: '',
-    operador: '',
-    observaciones: '',
-    aceite: false,
-    agua: false,
-    neumaticos: false,
-    nivelCombustible: false,
-    lucesYAlarmas: false,
-    frenos: false,
-    extintores: false,
-    cinturonSeguridad: false
-  });
 
-  const handlePrestartChange = (e) => {
-    const { name, value, type, checked } = e.target;
-    
-    // Log detallado para depuración
-    console.log('Cambio en el formulario:', {
-      name, 
-      value, 
-      type, 
-      checked
-    });
-
-    // Actualiza el estado basado en el tipo de input
-    setPrestartData(prev => ({
-      ...prev,
-      [name]: type === 'checkbox' ? checked : value
-    }));
-  };
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    console.log('Datos de Pre-Start:', prestartData);
-  };
-
-  return (
-    <PreStartCheckForm 
-      prestartData={prestartData} 
-      handlePrestartChange={handlePrestartChange}
-      handleSubmit={handleSubmit}
-    />
-  );
-};
 export default PreStartCheckForm;

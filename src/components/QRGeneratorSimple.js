@@ -4,29 +4,62 @@ import { Trash2 } from 'lucide-react';
 
 const QRGeneratorSimple = () => {
   const [qrCodes, setQrCodes] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [baseUrl, setBaseUrl] = useState('');
 
   useEffect(() => {
     // Set the base URL when the component mounts
     setBaseUrl(window.location.origin);
     
-    const loadMaquinas = () => {
+    // Fetch machines from the API instead of localStorage
+    const fetchMachines = async () => {
       try {
-        const storedMaquinas = JSON.parse(localStorage.getItem('maquinas') || '[]');
-        const codes = storedMaquinas.map(maquina => ({
-          id: maquina.id,
-          nombre: maquina.nombre || maquina.modelo,
-          modelo: maquina.modelo,
-          marca: maquina.marca,
-          codigo: maquina.maquinariaId
+        setLoading(true);
+        const response = await fetch('/api/machines');
+        
+        if (!response.ok) {
+          throw new Error('Failed to fetch machines');
+        }
+        
+        const data = await response.json();
+        console.log('Machines loaded for QR codes:', data);
+        
+        // Format the machines data for QR codes
+        const codes = data.map(machine => ({
+          id: machine._id,
+          nombre: machine.model || machine.nombre,
+          modelo: machine.model || machine.modelo,
+          marca: machine.brand || machine.marca,
+          codigo: machine.machineId || machine.maquinariaId
         }));
+        
         setQrCodes(codes);
+        setError(null);
       } catch (error) {
-        console.error('Error loading machines:', error);
+        console.error('Error loading machines for QR codes:', error);
+        setError(error.message);
+        
+        // Fallback to localStorage only if API fails
+        try {
+          const storedMaquinas = JSON.parse(localStorage.getItem('maquinas') || '[]');
+          const codes = storedMaquinas.map(maquina => ({
+            id: maquina.id,
+            nombre: maquina.nombre || maquina.modelo,
+            modelo: maquina.modelo,
+            marca: maquina.marca,
+            codigo: maquina.maquinariaId
+          }));
+          setQrCodes(codes);
+        } catch (localError) {
+          console.error('Also failed to load from localStorage:', localError);
+        }
+      } finally {
+        setLoading(false);
       }
     };
 
-    loadMaquinas();
+    fetchMachines();
   }, []);
 
   const handleDelete = (id) => {
@@ -80,6 +113,26 @@ const QRGeneratorSimple = () => {
     return fullUrl;
   };
 
+  if (loading) {
+    return (
+      <div className="bg-white rounded-lg shadow-lg p-6">
+        <div className="flex justify-center items-center h-48">
+          <p className="text-gray-500">Loading machines...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error && qrCodes.length === 0) {
+    return (
+      <div className="bg-white rounded-lg shadow-lg p-6">
+        <div className="text-center p-4">
+          <p className="text-red-500 mb-2">Error: {error}</p>
+          <p className="text-gray-500">Failed to load machines for QR code generation</p>
+        </div>
+      </div>
+    );
+  }
   
   return (
     <div className="bg-white rounded-lg shadow-lg p-6">

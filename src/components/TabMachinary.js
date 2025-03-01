@@ -1,271 +1,161 @@
-import React, { useState } from 'react';
-import { PlusCircle, Edit2, Trash2, QrCode } from 'lucide-react';
-import MaquinaModal from './MaquinaModal';
-import '../styles/layout.css';
-import '../styles/machinary.css';
+import React, { useState, useEffect } from 'react';
+import { PlusCircle, Edit2, Trash2, Eye } from 'lucide-react';
+import MachineModal from './MachineModal';
+import DetailsModal from './DetailsModal';
+import '../styles/tables.css';
 
-
-// StatusBadge Component
-const StatusBadge = ({ maquina }) => {
-    const calculateStatus = () => {
-        if (!maquina.horasActuales || !maquina.proximoService) {
-            return {
-                label: 'No data',
-                color: 'bg-gray-100 text-gray-800',
-            };
-        }
-
-        const horasRestantes = maquina.proximoService - maquina.horasActuales;
-
-        if (horasRestantes <= 0) {
-            return {
-                label: 'Urgent Service',
-                color: 'bg-red-100 text-red-800',
-            };
-        }
-
-        if (horasRestantes <= 50) {
-            return {
-                label: 'Next Service',
-                color: 'bg-yellow-100 text-yellow-800',
-            };
-        }
-
-        return {
-            label: 'In Operation',
-            color: 'bg-green-100 text-green-800',
-        };
-    };
-
-    const status = calculateStatus();
-
-    return (
-        <span className={`status-badge ${status.color}`}>
-            {status.label}
-        </span>
-    );
-};
-
-
-// NoData Component
-const NoData = () => (
-    <div className="no-data">
-        <p className="no-data-title">No machines registered</p>
-        <p className="no-data-subtitle">Click on "New Machine" to add one</p>
-    </div>
-);
-
-// Main Component TabMachinary
-const TabMachinary = ({ maquinas, setMaquinas }) => {
-    const [showModal, setShowModal] = useState(false);
-    const [modalType, setModalType] = useState('');
-    const [maquinaSeleccionada, setMaquinaSeleccionada] = useState(null);
+const TabMachinary = () => {
+    const [machines, setMachines] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
     const [currentPage, setCurrentPage] = useState(1);
     const [itemsPerPage] = useState(10);
+    const [showModal, setShowModal] = useState(false);
+    const [modalType, setModalType] = useState('');
+    const [selectedMachine, setSelectedMachine] = useState(null);
+    const [showDetails, setShowDetails] = useState(false);
 
-    // Initial state for new machine
-    const initialMaquinaState = {
-        nombre: '',
-        modelo: '',
-        marca: '',
-        serie: '',
-        maquinariaId: '',
-        anio: '',
-        horasActuales: '',
-        ultimoService: '',
-        proximoService: '',
-        aceiteMotor: { tipo: '', capacidad: '', marca: '' },
-        aceiteHidraulico: { tipo: '', capacidad: '', marca: '' },
-        aceiteTransmision: { tipo: '', capacidad: '', marca: '' },
-        filtros: {
-            motor: '',
-            motorMarca: '',
-            transmision: '',
-            transmisionMarca: '',
-            combustible: '',
-            combustibleMarca: '',
-        },
-        neumaticos: {
-            delanteros: { tamano: '', presion: '', marca: '' },
-            traseros: { tamano: '', presion: '', marca: '' },
-        },
+    const fetchMachines = async () => {
+        try {
+            setLoading(true);
+            const response = await fetch('/api/machines', {
+                method: 'GET',
+                headers: {
+                    'Cache-Control': 'no-cache'
+                }
+            });
+            
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`Error loading machines: ${response.status} ${errorText}`);
+            }
+            
+            const data = await response.json();
+            console.log('Machines loaded:', data);
+            setMachines(data);
+            setError(null);
+        } catch (error) {
+            console.error('Error:', error);
+            setError(error.message);
+            
+            // Fallback to localStorage if API fails
+            try {
+                const storedMachines = JSON.parse(localStorage.getItem('maquinas') || '[]');
+                if (storedMachines.length > 0) {
+                    console.log('Using machines from localStorage as fallback:', storedMachines);
+                    setMachines(storedMachines);
+                }
+            } catch (localError) {
+                console.error('Failed to load from localStorage:', localError);
+            }
+        } finally {
+            setLoading(false);
+        }
     };
-    const [nuevaMaquina, setNuevaMaquina] = useState(initialMaquinaState);
 
-    // Pagination logic
+    useEffect(() => {
+        fetchMachines();
+    }, []);
+
+    const handleDelete = async (id) => {
+        if (window.confirm('Are you sure you want to delete this machine?')) {
+            try {
+                const response = await fetch(`/api/machines/${id}`, {
+                    method: 'DELETE',
+                });
+                
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || 'Error deleting machine');
+                }
+                
+                await fetchMachines();
+                alert('Machine deleted successfully');
+            } catch (error) {
+                console.error('Error:', error);
+                alert(error.message);
+                
+                // Fallback to localStorage if API fails
+                try {
+                    const storedMachines = JSON.parse(localStorage.getItem('maquinas') || '[]');
+                    const updatedMachines = storedMachines.filter(machine => machine.id !== id);
+                    localStorage.setItem('maquinas', JSON.stringify(updatedMachines));
+                    setMachines(updatedMachines);
+                } catch (localError) {
+                    console.error('Failed to update localStorage:', localError);
+                }
+            }
+        }
+    };
+
+    const handleSubmit = async (machineData) => {
+        try {
+            console.log('Submitting machine data:', machineData);
+            
+            // Create a copy of the data without _id for new machines
+            const dataToSubmit = { ...machineData };
+            if (modalType !== 'edit' && dataToSubmit._id) {
+                delete dataToSubmit._id;
+            }
+            
+            const url = modalType === 'edit' ? `/api/machines/${selectedMachine._id}` : '/api/machines';
+            const method = modalType === 'edit' ? 'PUT' : 'POST';
+    
+            const response = await fetch(url, {
+                method,
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(dataToSubmit),
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || `Error ${modalType === 'edit' ? 'updating' : 'creating'} machine`);
+            }
+
+            const result = await response.json();
+            console.log('API response:', result);
+            
+            await fetchMachines();
+            setShowModal(false);
+            setSelectedMachine(null);
+            
+            // Also update localStorage as backup
+            try {
+                const storedMachines = JSON.parse(localStorage.getItem('maquinas') || '[]');
+                let updatedMachines;
+                
+                if (modalType === 'edit') {
+                    updatedMachines = storedMachines.map(machine => 
+                        machine.id === selectedMachine.id ? { ...machine, ...machineData } : machine
+                    );
+                } else {
+                    // Generate a local ID if needed
+                    const newMachine = { 
+                        ...machineData, 
+                        id: result._id || Date.now().toString()
+                    };
+                    updatedMachines = [...storedMachines, newMachine];
+                }
+                
+                localStorage.setItem('maquinas', JSON.stringify(updatedMachines));
+            } catch (localError) {
+                console.error('Failed to update localStorage:', localError);
+            }
+            
+        } catch (error) {
+            console.error('Error:', error);
+            alert(error.message);
+        }
+    };
+
     const indexOfLastItem = currentPage * itemsPerPage;
     const indexOfFirstItem = indexOfLastItem - itemsPerPage;
-    const currentItems = maquinas.slice(indexOfFirstItem, indexOfLastItem);
-    const totalPages = Math.ceil(maquinas.length / itemsPerPage);
+    const currentItems = machines.slice(indexOfFirstItem, indexOfLastItem);
+    const totalPages = Math.ceil(machines.length / itemsPerPage);
 
-    const paginate = (pageNumber) => setCurrentPage(pageNumber);
-
-    const handlePrevious = () => {
-        if (currentPage > 1) setCurrentPage(currentPage - 1);
-    };
-
-    const handleNext = () => {
-        if (currentPage < totalPages) setCurrentPage(currentPage + 1);
-    };
-
-    // Modal handlers
-    const handleNuevaMaquina = () => {
-        setModalType('nueva-maquina');
-        setMaquinaSeleccionada(null);
-        setNuevaMaquina(initialMaquinaState); // Reset form
-        setShowModal(true);
-    };
-
-    const handleEditarMaquina = (maquina) => {
-        console.log('Editando máquina:', maquina);
-        setMaquinaSeleccionada(maquina);
-        setModalType('editar');
-        setShowModal(true);
-      };
-
-      const handleEliminarMaquina = async (maquina) => {
-        if (!window.confirm('¿Está seguro de que desea eliminar esta máquina?')) {
-          return;
-        }
-      
-        try {
-          // Get the ID to use for deletion (prefer _id if available)
-          const idToDelete = maquina._id || maquina.id;
-          
-          if (!idToDelete) {
-            throw new Error('No se encontró un ID válido para la máquina');
-          }
-      
-          console.log('Attempting to delete machine:', maquina);
-          console.log('Using ID:', idToDelete);
-      
-          // Update local state optimistically
-          const maquinasActualizadas = maquinas.filter(m => 
-            (m._id !== idToDelete) && (m.id !== idToDelete)
-          );
-          setMaquinas(maquinasActualizadas);
-          localStorage.setItem('maquinas', JSON.stringify(maquinasActualizadas));
-      
-          // Make the API call
-          const response = await fetch(`/api/maquinas/${idToDelete}`, {
-            method: 'DELETE',
-          });
-      
-          const result = await response.json();
-      
-          if (!response.ok) {
-            // Revert changes if the API call fails
-            setMaquinas(maquinas);
-            localStorage.setItem('maquinas', JSON.stringify(maquinas));
-            throw new Error(result.error || 'Error al eliminar la máquina');
-          }
-      
-          // If successful, refresh the list from the server
-          const refreshResponse = await fetch('/api/maquinas');
-          if (refreshResponse.ok) {
-            const refreshedData = await refreshResponse.json();
-            setMaquinas(refreshedData);
-            localStorage.setItem('maquinas', JSON.stringify(refreshedData));
-          }
-      
-          alert('Máquina eliminada correctamente');
-      
-        } catch (error) {
-          console.error('Error al eliminar máquina:', error);
-          alert(`Error al eliminar la máquina: ${error.message}`);
-        }
-      };
-
-    const handleGenerarQR = (maquina) => {
-        console.log('Generate QR for:', maquina);
-    };
-
-    // Function to add new machine
-    const agregarMaquina = async () => {
-        try {
-            // Crear la máquina con ID temporal
-            const maquinaConId = {
-                ...nuevaMaquina,
-                id: Date.now().toString() // ID temporal
-            };
-    
-            // Primero guardar en MongoDB
-            const response = await fetch('/api/maquinas', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(maquinaConId),
-            });
-    
-            if (!response.ok) {
-                throw new Error('Error al guardar en la base de datos');
-            }
-    
-            // Obtener la respuesta con el ID de MongoDB
-            const maquinaGuardada = await response.json();
-    
-            // Actualizar con el ID correcto
-            const maquinaFinal = {
-                ...maquinaConId,
-                id: maquinaGuardada._id || maquinaGuardada.id // Usar el ID devuelto por MongoDB
-            };
-    
-            // Actualizar estado local y localStorage
-            const maquinasActualizadas = [...maquinas, maquinaFinal];
-            setMaquinas(maquinasActualizadas);
-            localStorage.setItem('maquinas', JSON.stringify(maquinasActualizadas));
-            
-            setNuevaMaquina(initialMaquinaState);
-            setShowModal(false);
-        } catch (error) {
-            console.error('Error al agregar máquina:', error);
-            alert('Error al guardar la máquina. Por favor, intente nuevamente.');
-        }
-    };
-
-    // Function to update existing machine
-    const actualizarMaquina = async (maquinaActualizada) => {
-        try {
-          const response = await fetch(`/api/maquinas/${maquinaActualizada._id}`, {
-            method: 'PATCH',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(maquinaActualizada),
-          });
-      
-          const result = await response.json();
-      
-          if (!response.ok) {
-            throw new Error(result.error || 'Error al actualizar en la base de datos');
-          }
-      
-          // Update the machines list with the response from the server
-          const maquinasActualizadas = maquinas.map((m) =>
-            m._id === result.data._id ? result.data : m
-          );
-      
-          setMaquinas(maquinasActualizadas);
-          localStorage.setItem('maquinas', JSON.stringify(maquinasActualizadas));
-      
-          // Show success message and close modal
-          alert('Máquina actualizada correctamente');
-          setShowModal(false);
-      
-          // Optional: Refresh the list from the server
-          const fetchResponse = await fetch('/api/maquinas');
-          const fetchResult = await fetchResponse.json();
-          if (fetchResponse.ok) {
-            setMaquinas(fetchResult);
-            localStorage.setItem('maquinas', JSON.stringify(fetchResult));
-          }
-      
-        } catch (error) {
-          console.error('Error al actualizar máquina:', error);
-          alert('Error al actualizar la máquina. Por favor, intente nuevamente.');
-        }
-      };
+    if (loading) {
+        return <div className="loading-container">Loading...</div>;
+    }
 
     return (
         <div className="machinary-container">
@@ -273,18 +163,29 @@ const TabMachinary = ({ maquinas, setMaquinas }) => {
                 <h2 className="section-title">Machine Registry</h2>
                 <div className="flex items-center gap-4">
                     <div className="pagination-info">
-                        Showing {indexOfFirstItem + 1}-{Math.min(indexOfLastItem, maquinas.length)} of{' '}
-                        {maquinas.length}
+                        Showing {machines.length > 0 ? indexOfFirstItem + 1 : 0}-{Math.min(indexOfLastItem, machines.length)} of {machines.length}
                     </div>
-                    <button onClick={handleNuevaMaquina} className="primary-button">
+                    <button
+                        onClick={() => {
+                            setModalType('new');
+                            setShowModal(true);
+                        }}
+                        className="primary-button"
+                    >
                         <PlusCircle className="button-icon" size={20} />
                         <span>New Machine</span>
                     </button>
                 </div>
             </div>
 
-            {maquinas.length === 0 ? (
-                <NoData />
+            {error && (
+                <div className="error-message mb-4">
+                    <p>{error}</p>
+                </div>
+            )}
+
+            {machines.length === 0 ? (
+                <div className="empty-message">No machines registered.</div>
             ) : (
                 <>
                     <div className="table-wrapper">
@@ -293,49 +194,53 @@ const TabMachinary = ({ maquinas, setMaquinas }) => {
                                 <tr>
                                     <th className="table-cell text-left">Model</th>
                                     <th className="table-cell text-left">Brand</th>
+                                    <th className="table-cell text-left">Serial</th>
                                     <th className="table-cell text-left">Machine ID</th>
                                     <th className="table-cell text-left">Last Service</th>
                                     <th className="table-cell text-left">Next Service</th>
                                     <th className="table-cell text-left">Current Hours</th>
-                                    <th className="table-cell text-left">Status</th>
                                     <th className="table-cell text-left">Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {currentItems.map((maquina) => (
-                                    <tr key={maquina.id} className="table-row">
-                                        <td className="table-cell">{maquina.modelo}</td>
-                                        <td className="table-cell">{maquina.marca}</td>
-                                        <td className="table-cell">{maquina.maquinariaId}</td>
-                                        <td className="table-cell">{maquina.ultimoService || 'Not registered'}</td>
-                                        <td className="table-cell">{maquina.proximoService || 'Not scheduled'}</td>
-                                        <td className="table-cell">{maquina.horasActuales || '0'} hrs</td>
-                                        <td className="table-cell">
-                                            <StatusBadge maquina={maquina} />
-                                        </td>
+                                {currentItems.map((machine) => (
+                                    <tr key={machine._id || machine.id} className="table-row">
+                                        <td className="table-cell">{machine.model || machine.modelo}</td>
+                                        <td className="table-cell">{machine.brand || machine.marca}</td>
+                                        <td className="table-cell">{machine.serialNumber || machine.serie}</td>
+                                        <td className="table-cell">{machine.machineId || machine.maquinariaId}</td>
+                                        <td className="table-cell">{machine.lastService || machine.ultimoService || 'Not recorded'}</td>
+                                        <td className="table-cell">{machine.nextService || machine.proximoService || 'Not scheduled'}</td>
+                                        <td className="table-cell">{machine.currentHours || machine.horasActuales || '0'} hrs</td>
                                         <td className="table-cell">
                                             <div className="table-actions">
-                                            <button
-                                                onClick={() => handleEditarMaquina(maquina)}
-                                                className="action-button edit-button text-green-600 hover:text-green-800 p-2"
-                                                title="Editar"
+                                                <button
+                                                    onClick={() => {
+                                                        setSelectedMachine(machine);
+                                                        setShowDetails(true);
+                                                    }}
+                                                    className="action-button view-button"
+                                                    title="View details"
                                                 >
-                                                <Edit2 className="button-icon" size={20} />
+                                                    <Eye className="button-icon" size={20} />
                                                 </button>
                                                 <button
-                                                    onClick={() => handleGenerarQR(maquina)}
-                                                    className="action-button qr-button"
-                                                    title="QR Code"
+                                                    onClick={() => {
+                                                        setSelectedMachine(machine);
+                                                        setModalType('edit');
+                                                        setShowModal(true);
+                                                    }}
+                                                    className="action-button edit-button"
+                                                    title="Edit"
                                                 >
-                                                    <QrCode className="button-icon" size={20} />
+                                                    <Edit2 className="button-icon" size={20} />
                                                 </button>
                                                 <button
-                                                onClick={() => handleEliminarMaquina(maquina)}
-                                                className="action-button text-red-600 hover:text-red-800 p-2"
-                                                title="Delete"
-                                                disabled={!maquina._id && !maquina.id}
+                                                    onClick={() => handleDelete(machine._id || machine.id)}
+                                                    className="action-button delete-button"
+                                                    title="Delete"
                                                 >
-                                                <Trash2 className="w-5 h-5" />
+                                                    <Trash2 className="button-icon" size={20} />
                                                 </button>
                                             </div>
                                         </td>
@@ -344,29 +249,28 @@ const TabMachinary = ({ maquinas, setMaquinas }) => {
                             </tbody>
                         </table>
                     </div>
-                    
 
                     <div className="pagination-controls">
                         <button
-                            onClick={handlePrevious}
+                            onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
                             disabled={currentPage === 1}
                             className="pagination-button"
                         >
                             Previous
                         </button>
                         <div className="page-numbers">
-                            {Array.from({ length: totalPages }, (_, i) => i + 1).map((number) => (
+                            {Array.from({ length: totalPages }, (_, i) => (
                                 <button
-                                    key={number}
-                                    onClick={() => paginate(number)}
-                                    className={`page-number ${currentPage === number ? 'active' : ''}`}
+                                    key={i + 1}
+                                    onClick={() => setCurrentPage(i + 1)}
+                                    className={`page-number ${currentPage === i + 1 ? 'active' : ''}`}
                                 >
-                                    {number}
+                                    {i + 1}
                                 </button>
                             ))}
                         </div>
                         <button
-                            onClick={handleNext}
+                            onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
                             disabled={currentPage === totalPages}
                             className="pagination-button"
                         >
@@ -376,17 +280,25 @@ const TabMachinary = ({ maquinas, setMaquinas }) => {
                 </>
             )}
 
-            {/* Machine Modal */}
-            <MaquinaModal
-                showModal={showModal}
-                modalType={modalType}
-                maquinaSeleccionada={maquinaSeleccionada}
-                nuevaMaquina={nuevaMaquina}
-                setShowModal={setShowModal}
-                setMaquinaSeleccionada={setMaquinaSeleccionada}
-                setNuevaMaquina={setNuevaMaquina}
-                agregarMaquina={agregarMaquina}
-                actualizarMaquina={actualizarMaquina}
+            <MachineModal
+                show={showModal}
+                type={modalType}
+                machine={selectedMachine}
+                onClose={() => {
+                    setShowModal(false);
+                    setSelectedMachine(null);
+                }}
+                onSubmit={handleSubmit}
+            />
+
+            <DetailsModal
+                show={showDetails}
+                data={selectedMachine}
+                onClose={() => {
+                    setShowDetails(false);
+                    setSelectedMachine(null);
+                }}
+                type="machine"
             />
         </div>
     );

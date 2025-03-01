@@ -1,4 +1,3 @@
-// src/models/PreStart.js
 import mongoose from 'mongoose';
 
 const prestartSchema = new mongoose.Schema({

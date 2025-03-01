@@ -14,7 +14,5 @@ const serviceSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// Check if the model already exists before creating it
 const Service = mongoose.models.Service || mongoose.model('Service', serviceSchema);
-
 export default Service;

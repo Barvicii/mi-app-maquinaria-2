@@ -1,69 +1,82 @@
 import { NextResponse } from 'next/server';
-import dbConnect from '@/lib/mongodb';
+import dbConnect from '@/lib/dbConnect';
 import PreStart from '@/models/PreStart';
-
-export async function DELETE(request, { params }) {
-  try {
-    await dbConnect();
-    
-    const { id } = params;
-    console.log('Intentando eliminar PreStart con ID:', id);
-
-    if (!id) {
-      return NextResponse.json({ 
-        success: false, 
-        error: 'ID no proporcionado' 
-      }, { status: 400 });
-    }
-
-    const prestart = await PreStart.findByIdAndDelete(id);
-    
-    if (!prestart) {
-      return NextResponse.json({ 
-        success: false, 
-        error: 'Registro no encontrado' 
-      }, { status: 404 });
-    }
-
-    console.log('PreStart eliminado:', prestart);
-
-    return NextResponse.json({ 
-      success: true, 
-      message: 'Registro eliminado correctamente' 
-    });
-
-  } catch (error) {
-    console.error('Error al eliminar PreStart:', error);
-    return NextResponse.json({ 
-      success: false, 
-      error: error.message 
-    }, { status: 500 });
-  }
-}
 
 export async function GET(request, { params }) {
   try {
     await dbConnect();
-    
     const { id } = params;
+    
     const prestart = await PreStart.findById(id);
     
     if (!prestart) {
-      return NextResponse.json({ 
-        success: false, 
-        error: 'Registro no encontrado' 
-      }, { status: 404 });
+      return NextResponse.json(
+        { error: 'Prestart check not found' },
+        { status: 404 }
+      );
     }
 
-    return NextResponse.json({ 
-      success: true, 
-      data: prestart 
-    });
-
+    return NextResponse.json(prestart);
   } catch (error) {
-    return NextResponse.json({ 
-      success: false, 
-      error: error.message 
-    }, { status: 500 });
+    console.error('GET prestart error:', error);
+    return NextResponse.json(
+      { error: 'Error loading prestart check' },
+      { status: 500 }
+    );
+  }
+}
+
+export async function PUT(request, { params }) {
+  try {
+    await dbConnect();
+    const { id } = params;
+    const data = await request.json();
+    
+    const updatedPrestart = await PreStart.findByIdAndUpdate(
+      id,
+      data,
+      { new: true, runValidators: true }
+    );
+    
+    if (!updatedPrestart) {
+      return NextResponse.json(
+        { error: 'Prestart check not found' },
+        { status: 404 }
+      );
+    }
+
+    return NextResponse.json(updatedPrestart);
+  } catch (error) {
+    console.error('PUT prestart error:', error);
+    return NextResponse.json(
+      { error: 'Error updating prestart check' },
+      { status: 500 }
+    );
+  }
+}
+
+export async function DELETE(request, { params }) {
+  try {
+    await dbConnect();
+    const { id } = params;
+    
+    const deletedPrestart = await PreStart.findByIdAndDelete(id);
+    
+    if (!deletedPrestart) {
+      return NextResponse.json(
+        { error: 'Prestart check not found' },
+        { status: 404 }
+      );
+    }
+
+    return NextResponse.json(
+      { message: 'Prestart check deleted successfully' }
+    );
+  } catch (error) {
+    console.error('DELETE prestart error:', error);
+    return NextResponse.json(
+      { error: 'Error deleting prestart check' },
+      { status: 500 }
+    );
   }
 }
