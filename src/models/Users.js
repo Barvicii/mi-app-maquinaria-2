@@ -79,5 +79,17 @@ userSchema.virtual('machines', {
   foreignField: 'userId',
 });
 
+userSchema.virtual('prestarts', {
+  ref: 'PreStart',
+  localField: '_id',
+  foreignField: 'userId',
+});
+
+userSchema.virtual('services', {
+  ref: 'Service',
+  localField: '_id',
+  foreignField: 'userId',
+});
+
 const User = mongoose.models.User || mongoose.model('User', userSchema);
 export default User;
