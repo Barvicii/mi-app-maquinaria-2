@@ -75,11 +75,24 @@ const MachineSchema = new mongoose.Schema({
             pressure: { type: String, default: '' },
             brand: { type: String, default: '' }
         }
+    },
+    // New fields for user association
+    userId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        required: true
+    },
+    organization: {
+        type: String,
+        default: 'Default'
+    },
+    isPublic: {
+        type: Boolean,
+        default: false
     }
 }, {
     timestamps: true,
-    // Cambiar esto a false o quitarlo para permitir campos adicionales
-    strict: false,  
+    strict: false,
     validateBeforeSave: true
 });
 

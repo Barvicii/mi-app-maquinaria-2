@@ -15,6 +15,17 @@ const TabPreStart = () => {
   const [error, setError] = useState(null);
   const [showNotification, setShowNotification] = useState(false);
   const [notificationMessage, setNotificationMessage] = useState('');
+  const [notification, setNotification] = useState({
+    show: false,
+    message: '',
+    type: 'success'
+  });
+  // Add state for refresh animation
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [records, setRecords] = useState({
+    showing: '0-0 of 0',
+    total: 0
+  });
 
   // Calculate pagination
   const indexOfLastItem = currentPage * itemsPerPage;
@@ -22,14 +33,14 @@ const TabPreStart = () => {
   const currentItems = prestartRecords.slice(indexOfFirstItem, indexOfLastItem);
   const totalPages = Math.ceil(prestartRecords.length / itemsPerPage);
 
-  const fetchPrestarts = async () => {
+  const fetchPrestarts = async (showNotification = false) => {
     try {
       setLoading(true);
       setError(null);
       const response = await fetch('/api/prestart');
       
       if (!response.ok) {
-        throw new Error(`Error: ${response.status} ${response.statusText}`);
+        throw new Error(`Error: ${response.status}`);
       }
       
       const data = await response.json();
@@ -37,11 +48,30 @@ const TabPreStart = () => {
       // Handle both direct array response and data property in response
       const records = Array.isArray(data) ? data : (data.data || []);
       setPrestartRecords(records);
+
+      // Update records count
+      const start = indexOfFirstItem + 1;
+      const end = Math.min(indexOfLastItem, records.length);
+      setRecords({
+        showing: `${start}-${end} of ${records.length}`,
+        total: records.length
+      });
+
+      if (showNotification) {
+        setNotification({
+          show: true,
+          message: 'Records refreshed successfully',
+          type: 'success'
+        });
+      }
     } catch (err) {
       console.error('Error fetching prestarts:', err);
       setError(err.message || 'Failed to fetch prestart checks');
     } finally {
-      setLoading(false);
+      // Add delay for smoother loading transition
+      setTimeout(() => {
+        setLoading(false);
+      }, 500);
     }
   };
 
@@ -96,23 +126,6 @@ const TabPreStart = () => {
     );
   };
 
-  if (loading) {
-    return (
-      <div className="loading-container">
-        <div className="loading-text">Loading prestart checks...</div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="error-message">
-        <AlertTriangle className="w-5 h-5 mr-2" />
-        <div>Error: {error}</div>
-      </div>
-    );
-  }
-
   return (
     <div className="machinary-container">
       <Notification 
@@ -125,19 +138,53 @@ const TabPreStart = () => {
         <h2 className="section-title">Pre-Start Check Records</h2>
         <div className="flex items-center gap-4">
           <div className="pagination-info">
-            Showing {prestartRecords.length > 0 ? indexOfFirstItem + 1 : 0}-
-            {Math.min(indexOfLastItem, prestartRecords.length)} of {prestartRecords.length}
+            Showing {indexOfFirstItem + 1}-{Math.min(indexOfLastItem, prestartRecords.length)} of{' '}
+            {prestartRecords.length}
           </div>
           <button
-            onClick={fetchPrestarts}
-            className="primary-button"
+            onClick={async () => {
+              try {
+                setIsRefreshing(true);
+                await fetchPrestarts(true);
+              } catch (error) {
+                setNotification({
+                  show: true,
+                  message: 'Error refreshing records',
+                  type: 'error'
+                });
+              } finally {
+                setTimeout(() => {
+                  setIsRefreshing(false);
+                }, 500);
+              }
+            }}
+            className="refresh-button flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition-colors"
+            disabled={isRefreshing}
           >
-            <span>Refresh</span>
+            <svg
+              className={`w-5 h-5 ${isRefreshing ? 'animate-spin' : ''}`}
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+              />
+            </svg>
+            {isRefreshing ? 'Refreshing...' : 'Refresh'}
           </button>
         </div>
       </div>
 
-      {prestartRecords.length === 0 ? (
+      {loading ? (
+        <div className="loading-container">
+          <div className="loading-spinner"></div>
+          <div className="loading-text">Loading records...</div>
+        </div>
+      ) : prestartRecords.length === 0 ? (
         <div className="empty-message">No prestart records available.</div>
       ) : (
         <>

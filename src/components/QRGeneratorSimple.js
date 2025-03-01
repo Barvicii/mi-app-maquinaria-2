@@ -1,6 +1,8 @@
+// Import the new QRPrintCard component at the top of QRGeneratorSimple.js
 import React, { useState, useEffect } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { Trash2 } from 'lucide-react';
+import QRPrintCard from './QRPrintCard'; // Import the new component
 
 const QRGeneratorSimple = () => {
   const [qrCodes, setQrCodes] = useState([]);
@@ -64,18 +66,6 @@ const QRGeneratorSimple = () => {
 
   const handleDelete = (id) => {
     setQrCodes(qrCodes.filter(code => code.id !== id));
-  };
-
-  const handlePrint = (id) => {
-    const qrElement = document.getElementById(`qr-${id}`);
-    if (qrElement) {
-      const printWindow = window.open('', '', 'height=400,width=400');
-      printWindow.document.write('<html><head><title>Print QR Code</title></head><body>');
-      printWindow.document.write(qrElement.outerHTML);
-      printWindow.document.write('</body></html>');
-      printWindow.document.close();
-      printWindow.print();
-    }
   };
 
   const handleDownload = (id) => {
@@ -144,49 +134,49 @@ const QRGeneratorSimple = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {qrCodes.map((qr) => (
             <div key={qr.id} className="bg-gray-50 p-6 rounded-lg flex flex-col items-center">
-            <div className="mb-4 flex justify-center">
-              <QRCodeSVG
-                id={`qr-${qr.id}`}
-                value={getServiceUrl(qr.id)}
-                size={200}
-                level="H"
-                includeMargin={true}
-              />
-            </div>
-            <div className="text-center mb-4">
-              <h3 className="font-bold text-lg text-black">{qr.nombre}</h3>
-              <p className="text-black">Model: {qr.modelo}</p>
-              <p className="text-black">Brand: {qr.marca}</p>
-              {qr.codigo && <p className="text-black">ID: {qr.codigo}</p>}
-              <div className="mt-2">
-                <p className="text-sm text-gray-500 break-all">
-                  URL: {getServiceUrl(qr.id)}
-                </p>
-                <button
-                  onClick={() => {
-                    navigator.clipboard.writeText(getServiceUrl(qr.id))
-                      .then(() => alert('URL copied to clipboard'))
-                      .catch(err => console.error('Error copying:', err));
-                  }}
-                  className="text-indigo-600 hover:text-indigo-800 text-sm mt-1"
-                >
-                  Copy URL
-                </button>
+              <div className="mb-4 flex justify-center">
+                <QRCodeSVG
+                  id={`qr-${qr.id}`}
+                  value={getServiceUrl(qr.id)}
+                  size={200}
+                  level="H"
+                  includeMargin={true}
+                />
+              </div>
+              <div className="text-center mb-4">
+                <h3 className="font-bold text-lg text-black">{qr.nombre}</h3>
+                <p className="text-black">Model: {qr.modelo}</p>
+                <p className="text-black">Brand: {qr.marca}</p>
+                {qr.codigo && <p className="text-black">ID: {qr.codigo}</p>}
+                <div className="mt-2">
+                  <p className="text-sm text-gray-500 break-all">
+                    URL: {getServiceUrl(qr.id)}
+                  </p>
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(getServiceUrl(qr.id))
+                        .then(() => alert('URL copied to clipboard'))
+                        .catch(err => console.error('Error copying:', err));
+                    }}
+                    className="text-indigo-600 hover:text-indigo-800 text-sm mt-1"
+                  >
+                    Copy URL
+                  </button>
                 </div>
               </div>
               <div className="flex justify-center space-x-2 w-full">
-                <button
-                  onClick={() => handlePrint(qr.id)}
-                  className="px-4 py-2 bg-gray-200 text-black rounded-md hover:bg-gray-300 flex-1"
-                >
-                  Print
-                </button>
                 <button
                   onClick={() => handleDownload(qr.id)}
                   className="px-4 py-2 bg-gray-200 text-black rounded-md hover:bg-gray-300 flex-1"
                 >
                   Download
                 </button>
+                <QRPrintCard 
+                  id={qr.id} 
+                  machineId={qr.codigo} 
+                  modelName={qr.nombre}
+                  brandName={qr.marca}
+                />
                 <button
                   onClick={() => handleDelete(qr.id)}
                   className="px-4 py-2 bg-red-500 text-white rounded-md hover:bg-red-600"

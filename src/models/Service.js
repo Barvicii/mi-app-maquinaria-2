@@ -1,20 +1,40 @@
 import mongoose from 'mongoose';
 
-const serviceSchema = new mongoose.Schema({
-  tecnico: { type: String, required: true },
+const prestartSchema = new mongoose.Schema({
+  horasMaquina: { type: String, required: true },
+  operador: { type: String, required: true },
+  observaciones: String,
+  aceite: Boolean,
+  agua: Boolean,
+  neumaticos: Boolean,
+  nivelCombustible: Boolean,
+  lucesYAlarmas: Boolean,
+  frenos: Boolean,
+  extintores: Boolean,
+  cinturonSeguridad: Boolean,
   fecha: { type: Date, default: Date.now },
-  horasMaquina: { type: Number, required: true },
-  tipoServicio: { type: String, required: true },
-  proximoService: { type: Number, required: true },
-  trabajosRealizados: { type: [String], default: [] },
-  repuestos: { type: String, default: '' },
-  observaciones: { type: String, default: '' },
-  costo: { type: Number, default: 0 }
+  estado: { 
+    type: String, 
+    enum: ['OK', 'Requiere atención'],
+    default: 'OK'
+  },
+  // New fields for user association
+  userId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  },
+  machineId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Machine',
+    required: true
+  },
+  organization: {
+    type: String,
+    default: 'Default'
+  }
 }, {
   timestamps: true
 });
 
-// Check if the model already exists before creating it
-const Service = mongoose.models.Service || mongoose.model('Service', serviceSchema);
-
-export default Service;
+const PreStart = mongoose.models.PreStart || mongoose.model('PreStart', prestartSchema);
+export default PreStart;

@@ -152,149 +152,480 @@ const MachineModal = ({ show, type, machine, onClose, onSubmit }) => {
     setError(null);
   }, [type, machine, show]);
 
+  // Clear localStorage on component mount
+  useEffect(() => {
+    localStorage.removeItem('machineDraft');
+    return () => {
+      localStorage.removeItem('machineDraft');
+    };
+  }, []);
+
   const handleChange = (e) => {
     const { name, value } = e.target;
     
     // Handle nested properties
     if (name.includes('.')) {
-      const [parent, child, subChild] = name.split('.');
+      const parts = name.split('.');
       
-      if (subChild) {
-        setFormData({
-          ...formData,
+      if (parts.length === 2) {
+        const [parent, child] = parts;
+        setFormData(prev => ({
+          ...prev,
           [parent]: {
-            ...formData[parent],
+            ...prev[parent],
+            [child]: value
+          }
+        }));
+      } else if (parts.length === 3) {
+        const [parent, child, subChild] = parts;
+        setFormData(prev => ({
+          ...prev,
+          [parent]: {
+            ...prev[parent],
             [child]: {
-              ...formData[parent][child],
+              ...prev[parent][child],
               [subChild]: value
             }
           }
-        });
-      } else {
-        setFormData({
-          ...formData,
-          [parent]: {
-            ...formData[parent],
-            [child]: value
-          }
-        });
+        }));
       }
     } else {
-      setFormData({
-        ...formData,
+      setFormData(prev => ({
+        ...prev,
         [name]: value
-      });
+      }));
     }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (loading) return;
+
     setLoading(true);
     setError(null);
-    
-    try {
-      // Validate required fields
-      if (!formData.model || !formData.brand) {
-        throw new Error('Model and Brand are required fields');
-      }
 
-      // Log the form data before submission
-      console.log('Submitting form data:', formData);
-      
-      const url = type === 'edit' && machine?._id 
-        ? `/api/machines/${machine._id}` 
-        : '/api/machines';
-      
-      const method = type === 'edit' ? 'PUT' : 'POST';
-      
-      // Ensure consistent data structure
-      const dataToSubmit = {
-        model: formData.model,
-        brand: formData.brand,
-        serialNumber: formData.serialNumber || '',
-        machineId: formData.machineId || '',
-        year: formData.year || '',
-        currentHours: formData.currentHours || '0',
-        lastService: formData.lastService || '',
-        nextService: formData.nextService || '',
-        engineOil: {
-          type: formData.engineOil.type || '',
-          capacity: formData.engineOil.capacity || '',
-          brand: formData.engineOil.brand || ''
-        },
-        hydraulicOil: {
-          type: formData.hydraulicOil.type || '',
-          capacity: formData.hydraulicOil.capacity || '',
-          brand: formData.hydraulicOil.brand || ''
-        },
-        transmissionOil: {
-          type: formData.transmissionOil.type || '',
-          capacity: formData.transmissionOil.capacity || '',
-          brand: formData.transmissionOil.brand || ''
-        },
-        filters: {
-          engine: formData.filters.engine || '',
-          engineBrand: formData.filters.engineBrand || '',
-          transmission: formData.filters.transmission || '',
-          transmissionBrand: formData.filters.transmissionBrand || '',
-          fuel: formData.filters.fuel || '',
-          fuelBrand: formData.filters.fuelBrand || ''
-        },
-        tires: {
-          front: {
-            size: formData.tires.front.size || '',
-            pressure: formData.tires.front.pressure || '',
-            brand: formData.tires.front.brand || ''
-          },
-          rear: {
-            size: formData.tires.rear.size || '',
-            pressure: formData.tires.rear.pressure || '',
-            brand: formData.tires.rear.brand || ''
-          }
-        }
-      };
-      
-      // Log the formatted data
-      console.log('Formatted data for submission:', dataToSubmit);
-      
-      const response = await fetch(url, {
-        method,
+    try {
+      const response = await fetch('/api/machines', {
+        method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(dataToSubmit),
+        body: JSON.stringify(formData)
       });
-      
-      // Log the raw response
-      console.log('Response status:', response.status);
-      
+
+      const data = await response.json();
+
       if (!response.ok) {
-        const errorData = await response.json();
-        console.error('Error response:', errorData);
-        throw new Error(errorData.error || `Failed to ${type === 'edit' ? 'update' : 'create'} machine`);
+        // Only show error if it's not a successful creation
+        if (response.status !== 201) {
+          throw new Error(data.error || 'Failed to create machine');
+        }
       }
-      
-      const savedMachine = await response.json();
-      console.log('Saved machine:', savedMachine);
-      
-      // Pass the saved machine back to parent component
-      if (onSubmit) {
-        onSubmit(savedMachine);
-      }
-      
+
+      // If we got here, it was successful
+      onSubmit?.(data.machine);
       onClose();
+
     } catch (err) {
-      console.error('Error saving machine:', err);
-      setError(err.message || 'Failed to save machine');
-      
-      // Optional: alert for user feedback
-      alert(err.message || 'Failed to save machine. Please check your input and try again.');
+      console.error('Error:', err);
+      // Only set error if it's not about existing machine
+      if (!err.message.includes('already exists')) {
+        setError(err.message);
+      }
     } finally {
       setLoading(false);
     }
   };
 
-  // ... rest of the component remains the same (including renderTabContent method)
+  const renderTabContent = () => {
+    switch (activeTab) {
+      case 'basic':
+        return (
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <div className="modal-field">
+                <label className="block text-sm font-medium text-black mb-1">
+                  Model <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  name="model"
+                  value={formData.model}
+                  onChange={handleChange}
+                  className={`w-full p-2 border rounded-md text-black ${
+                    error && !formData.model ? 'border-red-500' : ''
+                  }`}
+                  required
+                />
+              </div>
+
+              <div className="modal-field">
+                <label className="block text-sm font-medium text-black mb-1">
+                  Brand <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  name="brand"
+                  value={formData.brand}
+                  onChange={handleChange}
+                  className={`w-full p-2 border rounded-md text-black ${
+                    error && !formData.brand ? 'border-red-500' : ''
+                  }`}
+                  required
+                />
+              </div>
+
+              <div className="modal-field">
+                <label className="block text-sm font-medium text-black mb-1">Serial Number</label>
+                <input
+                  type="text"
+                  name="serialNumber"
+                  value={formData.serialNumber}
+                  onChange={handleChange}
+                  className="w-full p-2 border rounded-md text-black"
+                />
+              </div>
+
+              <div className="modal-field">
+                <label className="block text-sm font-medium text-black mb-1">Machine ID</label>
+                <input
+                  type="text"
+                  name="machineId"
+                  value={formData.machineId}
+                  onChange={handleChange}
+                  className="w-full p-2 border rounded-md text-black"
+                />
+              </div>
+
+              <div className="modal-field">
+                <label className="block text-sm font-medium text-black mb-1">Year</label>
+                <input
+                  type="text"
+                  name="year"
+                  value={formData.year}
+                  onChange={handleChange}
+                  className="w-full p-2 border rounded-md text-black"
+                />
+              </div>
+
+              <div className="modal-field">
+                <label className="block text-sm font-medium text-black mb-1">Current Hours</label>
+                <input
+                  type="text"
+                  name="currentHours"
+                  value={formData.currentHours}
+                  onChange={handleChange}
+                  className="w-full p-2 border rounded-md text-black"
+                />
+              </div>
+
+              <div className="modal-field">
+                <label className="block text-sm font-medium text-black mb-1">Last Service</label>
+                <input
+                  type="text"
+                  name="lastService"
+                  value={formData.lastService}
+                  onChange={handleChange}
+                  className="w-full p-2 border rounded-md text-black"
+                />
+              </div>
+
+              <div className="modal-field">
+                <label className="block text-sm font-medium text-black mb-1">Next Service</label>
+                <input
+                  type="text"
+                  name="nextService"
+                  value={formData.nextService}
+                  onChange={handleChange}
+                  className="w-full p-2 border rounded-md text-black"
+                />
+              </div>
+            </div>
+          </div>
+        );
+      case 'oils':
+        return (
+          <div className="space-y-6 w-full">
+            <div className="oil-section">
+              <h4 className="font-medium text-black mb-3 text-lg">Engine Oil</h4>
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                <div className="modal-field">
+                  <label className="block text-sm font-medium text-black mb-1">Type</label>
+                  <input
+                    type="text"
+                    name="engineOil.type"
+                    value={formData.engineOil.type}
+                    onChange={handleChange}
+                    className="w-full p-2 border rounded-md text-black"
+                  />
+                </div>
+                <div className="modal-field">
+                  <label className="block text-sm font-medium text-black mb-1">Capacity</label>
+                  <input
+                    type="text"
+                    name="engineOil.capacity"
+                    value={formData.engineOil.capacity}
+                    onChange={handleChange}
+                    className="w-full p-2 border rounded-md text-black"
+                  />
+                </div>
+                <div className="modal-field">
+                  <label className="block text-sm font-medium text-black mb-1">Brand</label>
+                  <input
+                    type="text"
+                    name="engineOil.brand"
+                    value={formData.engineOil.brand}
+                    onChange={handleChange}
+                    className="w-full p-2 border rounded-md text-black"
+                  />
+                </div>
+              </div>
+            </div>
+      
+            <div className="oil-section">
+              <h4 className="font-medium text-black mb-3 text-lg">Hydraulic Oil</h4>
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                <div className="modal-field">
+                  <label className="block text-sm font-medium text-black mb-1">Type</label>
+                  <input
+                    type="text"
+                    name="hydraulicOil.type"
+                    value={formData.hydraulicOil.type}
+                    onChange={handleChange}
+                    className="w-full p-2 border rounded-md text-black"
+                  />
+                </div>
+                <div className="modal-field">
+                  <label className="block text-sm font-medium text-black mb-1">Capacity</label>
+                  <input
+                    type="text"
+                    name="hydraulicOil.capacity"
+                    value={formData.hydraulicOil.capacity}
+                    onChange={handleChange}
+                    className="w-full p-2 border rounded-md text-black"
+                  />
+                </div>
+                <div className="modal-field">
+                  <label className="block text-sm font-medium text-black mb-1">Brand</label>
+                  <input
+                    type="text"
+                    name="hydraulicOil.brand"
+                    value={formData.hydraulicOil.brand}
+                    onChange={handleChange}
+                    className="w-full p-2 border rounded-md text-black"
+                  />
+                </div>
+              </div>
+            </div>
+      
+            <div className="oil-section">
+              <h4 className="font-medium text-black mb-3 text-lg">Transmission Oil</h4>
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                <div className="modal-field">
+                  <label className="block text-sm font-medium text-black mb-1">Type</label>
+                  <input
+                    type="text"
+                    name="transmissionOil.type"
+                    value={formData.transmissionOil.type}
+                    onChange={handleChange}
+                    className="w-full p-2 border rounded-md text-black"
+                  />
+                </div>
+                <div className="modal-field">
+                  <label className="block text-sm font-medium text-black mb-1">Capacity</label>
+                  <input
+                    type="text"
+                    name="transmissionOil.capacity"
+                    value={formData.transmissionOil.capacity}
+                    onChange={handleChange}
+                    className="w-full p-2 border rounded-md text-black"
+                  />
+                </div>
+                <div className="modal-field">
+                  <label className="block text-sm font-medium text-black mb-1">Brand</label>
+                  <input
+                    type="text"
+                    name="transmissionOil.brand"
+                    value={formData.transmissionOil.brand}
+                    onChange={handleChange}
+                    className="w-full p-2 border rounded-md text-black"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      case 'filters':
+        return (
+          <div className="space-y-6 w-full">
+            {/* Engine Filters */}
+            <div className="oil-section">
+              <h4 className="font-medium text-black mb-3 text-lg">Engine Filters</h4>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <div className="modal-field">
+                  <label className="block text-sm font-medium text-black mb-1">Filter Number</label>
+                  <input
+                    type="text"
+                    name="filters.engine"
+                    value={formData.filters.engine}
+                    onChange={handleChange}
+                    className="w-full p-2 border rounded-md text-black"
+                  />
+                </div>
+                <div className="modal-field">
+                  <label className="block text-sm font-medium text-black mb-1">Brand</label>
+                  <input
+                    type="text"
+                    name="filters.engineBrand"
+                    value={formData.filters.engineBrand}
+                    onChange={handleChange}
+                    className="w-full p-2 border rounded-md text-black"
+                  />
+                </div>
+              </div>
+            </div>
+      
+            {/* Transmission Filters */}
+            <div className="oil-section">
+              <h4 className="font-medium text-black mb-3 text-lg">Transmission Filters</h4>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <div className="modal-field">
+                  <label className="block text-sm font-medium text-black mb-1">Filter Number</label>
+                  <input
+                    type="text"
+                    name="filters.transmission"
+                    value={formData.filters.transmission}
+                    onChange={handleChange}
+                    className="w-full p-2 border rounded-md text-black"
+                  />
+                </div>
+                <div className="modal-field">
+                  <label className="block text-sm font-medium text-black mb-1">Brand</label>
+                  <input
+                    type="text"
+                    name="filters.transmissionBrand"
+                    value={formData.filters.transmissionBrand}
+                    onChange={handleChange}
+                    className="w-full p-2 border rounded-md text-black"
+                  />
+                </div>
+              </div>
+            </div>
+      
+            {/* Fuel Filters */}
+            <div className="oil-section">
+              <h4 className="font-medium text-black mb-3 text-lg">Fuel Filters</h4>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <div className="modal-field">
+                  <label className="block text-sm font-medium text-black mb-1">Filter Number</label>
+                  <input
+                    type="text"
+                    name="filters.fuel"
+                    value={formData.filters.fuel}
+                    onChange={handleChange}
+                    className="w-full p-2 border rounded-md text-black"
+                  />
+                </div>
+                <div className="modal-field">
+                  <label className="block text-sm font-medium text-black mb-1">Brand</label>
+                  <input
+                    type="text"
+                    name="filters.fuelBrand"
+                    value={formData.filters.fuelBrand}
+                    onChange={handleChange}
+                    className="w-full p-2 border rounded-md text-black"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      case 'tires':
+        return (
+          <div className="space-y-6">
+            {/* Front Tires */}
+            <div className="border-b pb-4">
+              <h4 className="font-medium text-black mb-3 text-lg">Front Tires</h4>
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                <div className="modal-field">
+                  <label className="block text-sm font-medium text-black mb-1">Size</label>
+                  <input
+                    type="text"
+                    name="tires.front.size"
+                    value={formData.tires.front.size}
+                    onChange={handleChange}
+                    className="w-full p-2 border rounded-md text-black"
+                  />
+                </div>
+
+                <div className="modal-field">
+                  <label className="block text-sm font-medium text-black mb-1">Pressure</label>
+                  <input
+                    type="text"
+                    name="tires.front.pressure"
+                    value={formData.tires.front.pressure}
+                    onChange={handleChange}
+                    className="w-full p-2 border rounded-md text-black"
+                  />
+                </div>
+
+                <div className="modal-field">
+                  <label className="block text-sm font-medium text-black mb-1">Brand</label>
+                  <input
+                    type="text"
+                    name="tires.front.brand"
+                    value={formData.tires.front.brand}
+                    onChange={handleChange}
+                    className="w-full p-2 border rounded-md text-black"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Rear Tires */}
+            <div>
+              <h4 className="font-medium text-black mb-3 text-lg">Rear Tires</h4>
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                <div className="modal-field">
+                  <label className="block text-sm font-medium text-black mb-1">Size</label>
+                  <input
+                    type="text"
+                    name="tires.rear.size"
+                    value={formData.tires.rear.size}
+                    onChange={handleChange}
+                    className="w-full p-2 border rounded-md text-black"
+                  />
+                </div>
+
+                <div className="modal-field">
+                  <label className="block text-sm font-medium text-black mb-1">Pressure</label>
+                  <input
+                    type="text"
+                    name="tires.rear.pressure"
+                    value={formData.tires.rear.pressure}
+                    onChange={handleChange}
+                    className="w-full p-2 border rounded-md text-black"
+                  />
+                </div>
+
+                <div className="modal-field">
+                  <label className="block text-sm font-medium text-black mb-1">Brand</label>
+                  <input
+                    type="text"
+                    name="tires.rear.brand"
+                    value={formData.tires.rear.brand}
+                    onChange={handleChange}
+                    className="w-full p-2 border rounded-md text-black"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      default:
+        return null;
+    }
+  };
 
   if (!show) return null;
 

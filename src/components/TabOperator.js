@@ -1,10 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import { Trash2, Eye, PlusCircle, PencilLine } from 'lucide-react';
 import ModalNewOperator from './ModalNewOperator';
-import '../styles/tables.css';
 import DetailsModal from './DetailsModal';
+import Notification from './Notification';
+import '../styles/tables.css';
 
 const TabOperator = () => {
+  // Add notification state
+  const [notification, setNotification] = useState({
+    show: false,
+    message: '',
+    type: 'success'
+  });
+
   const [operators, setOperators] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -39,7 +47,40 @@ const TabOperator = () => {
     setCurrentOperator(null);
   };
 
-  // Handle submit
+  const handleDelete = async (id) => {
+    if (window.confirm('¿Está seguro de que desea eliminar este operador?')) {
+      try {
+        const response = await fetch(`/api/operators/${id}`, {
+          method: 'DELETE',
+        });
+        
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.error || 'Error eliminando operador');
+        }
+        
+        // Show success notification
+        setNotification({
+          show: true,
+          message: 'Operador eliminado exitosamente',
+          type: 'success'
+        });
+        
+        // Refresh the list
+        await fetchOperators();
+      } catch (error) {
+        console.error('Error al eliminar operador:', error);
+        // Show error notification
+        setNotification({
+          show: true,
+          message: `Error al eliminar operador: ${error.message}`,
+          type: 'error'
+        });
+      }
+    }
+  };
+
+  // Handle submit with notifications
   const handleSubmit = async (formData) => {
     try {
       const url = currentOperator 
@@ -61,11 +102,23 @@ const TabOperator = () => {
 
       if (!response.ok) throw new Error('Error saving operator');
       
-      await fetchOperators(); // Refresh the list
+      // Show success notification
+      setNotification({
+        show: true,
+        message: `Operador ${currentOperator ? 'actualizado' : 'creado'} exitosamente`,
+        type: 'success'
+      });
+
+      await fetchOperators();
       handleCloseModal();
     } catch (error) {
       console.error('Submit error:', error);
-      throw new Error('Error saving operator');
+      // Show error notification
+      setNotification({
+        show: true,
+        message: 'Error al guardar operador',
+        type: 'error'
+      });
     }
   };
 
@@ -95,6 +148,15 @@ const TabOperator = () => {
 
   return (
     <div className="machinary-container">
+      {/* Add Notification component */}
+      {notification.show && (
+        <Notification
+          message={notification.message}
+          type={notification.type}
+          onClose={() => setNotification({ ...notification, show: false })}
+        />
+      )}
+
       <div className="machinary-header">
         <h2 className="section-title">Operator & Technician Management</h2>
         <div className="flex items-center gap-4">

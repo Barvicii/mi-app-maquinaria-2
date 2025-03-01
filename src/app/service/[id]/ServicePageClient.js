@@ -10,7 +10,7 @@ const ServicePage = ({ params }) => {
   const [maquina, setMaquina] = useState(null);
   const router = useRouter();
 
-  // Obtener el ID usando React.use()
+  // Use React.use() to unwrap the params before accessing id
   const id = React.use(params).id;
 
   const fetchMaquina = useCallback(async () => {
@@ -18,8 +18,8 @@ const ServicePage = ({ params }) => {
     
     try {
       setLoading(true);
-      const response = await fetch(`/api/maquinas/${id}`, {
-        // Agregar cache: 'no-store' para evitar el cacheo
+      const response = await fetch(`/api/machines/${id}`, {
+        // Add cache: 'no-store' to avoid caching
         cache: 'no-store'
       });
       

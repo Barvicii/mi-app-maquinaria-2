@@ -8,46 +8,15 @@ import { useRouter } from 'next/navigation';
 import '../styles/layout.css';
 import '../styles/machinary.css';
 
-
-const ServiceForm = ({ maquinaId }) => {
+const ServiceForm = ({ maquinaId, maquinaData }) => {
   const router = useRouter();
   const [formType, setFormType] = useState('');
-  const [currentDate] = useState(new Date().toISOString().split('T')[0]);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [showNotification, setShowNotification] = useState(false);
   const [notificationMessage, setNotificationMessage] = useState('');
-  const [maquina, setMaquina] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-
-  // Fetch machine data when component mounts
-  useEffect(() => {
-    const fetchMaquina = async () => {
-      try {
-        setLoading(true);
-        console.log('Fetching machine with ID:', maquinaId);
-        const response = await fetch(`/api/maquinas/${maquinaId}`);
-        
-        if (!response.ok) {
-          throw new Error(response.status === 404 ? 'Machine not found' : 'Error loading machine');
-        }
-
-        const data = await response.json();
-        console.log('Machine data received:', data);
-        setMaquina(data);
-        setError(null);
-      } catch (error) {
-        console.error('Error fetching machine:', error);
-        setError(error.message);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    if (maquinaId) {
-      fetchMaquina();
-    }
-  }, [maquinaId]);
+  
+  // Use the provided maquinaData instead of fetching it again
+  const [maquina] = useState(maquinaData);
 
   const [prestartData, setPrestartData] = useState({
     horasMaquina: '',
@@ -61,7 +30,7 @@ const ServiceForm = ({ maquinaId }) => {
     cinturonSeguridad: false,
     observaciones: '',
     operador: '',
-    maquina: maquina?.modelo || ''
+    maquina: maquina?.model || maquina?.modelo || ''
   });
 
   const [serviceData, setServiceData] = useState({
@@ -72,16 +41,8 @@ const ServiceForm = ({ maquinaId }) => {
     trabajosRealizados: [],
     observaciones: '',
     repuestos: '',
-    maquina: maquina?.modelo || ''
+    maquina: maquina?.model || maquina?.modelo || ''
   });
-
-  // Update form data when machine data is loaded
-  useEffect(() => {
-    if (maquina) {
-      setPrestartData(prev => ({ ...prev, maquina: maquina.modelo }));
-      setServiceData(prev => ({ ...prev, maquina: maquina.modelo }));
-    }
-  }, [maquina]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -93,10 +54,10 @@ const ServiceForm = ({ maquinaId }) => {
         tipo: formType,
         datos: formType === 'prestart' ? {
           ...prestartData,
-          maquina: maquina?.modelo || '',
+          maquina: maquina?.model || maquina?.modelo || '',
         } : {
           ...serviceData,
-          maquina: maquina?.modelo || '',
+          maquina: maquina?.model || maquina?.modelo || '',
         }
       };
 
@@ -136,7 +97,7 @@ const ServiceForm = ({ maquinaId }) => {
           cinturonSeguridad: false,
           observaciones: '',
           operador: '',
-          maquina: maquina?.modelo || ''
+          maquina: maquina?.model || maquina?.modelo || ''
         });
       } else {
         setServiceData({
@@ -147,7 +108,7 @@ const ServiceForm = ({ maquinaId }) => {
           trabajosRealizados: [],
           observaciones: '',
           repuestos: '',
-          maquina: maquina?.modelo || ''
+          maquina: maquina?.model || maquina?.modelo || ''
         });
       }
 
@@ -163,51 +124,24 @@ const ServiceForm = ({ maquinaId }) => {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-100">
-        <div className="bg-white p-8 rounded-lg shadow-lg">
-          <p className="text-lg text-black">Loading...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-100">
-        <div className="bg-white p-8 rounded-lg shadow-lg">
-          <h2 className="text-2xl font-bold text-red-600 mb-4">Error</h2>
-          <p className="text-black mb-4">{error}</p>
-          <button
-            onClick={() => router.back()}
-            className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700"
-          >
-            Go Back
-          </button>
-        </div>
-      </div>
-    );
-  }
-
   const InitialSelection = () => (
     <div className="space-y-6 text-center">
       {/* Logo centrado */}
       <div className="space-y-6 text-center">
-  <div className="flex justify-center">
-    <img 
-      src="/Imagen/logoo.png" 
-      alt="Logo" 
-      className="w-60 h-auto" // Cambia el ancho, el alto se ajustará automáticamente
-    />
-  </div>
-</div>
+        <div className="flex justify-center">
+          <img 
+            src="/Imagen/logoo.png" 
+            alt="Logo" 
+            className="w-60 h-auto" // Cambia el ancho, el alto se ajustará automáticamente
+          />
+        </div>
+      </div>
   
       {/* Nombre de la empresa */}
       <span className="brand-text">Orchard Service</span>
   
       <h2 className="text-2xl font-bold text-black">
-        {maquina ? `${maquina.nombre || maquina.modelo} (${maquina.marca})` : 'Select an option'}
+        {maquina ? `${maquina.nombre || maquina.model || maquina.modelo} (${maquina.marca || maquina.brand})` : 'Select an option'}
       </h2>
       <p className="text-black mb-8">Choose what you want to do:</p>
       <div className="grid grid-cols-1 gap-4 max-w-md mx-auto">
@@ -265,7 +199,7 @@ const ServiceForm = ({ maquinaId }) => {
             <>
               <div className="text-center mb-6">
                 <h2 className="text-2xl font-bold text-black">
-                  {maquina ? `${maquina.nombre || maquina.modelo} (${maquina.marca})` : 'Machine'}
+                  {maquina ? `${maquina.nombre || maquina.model || maquina.modelo} (${maquina.marca || maquina.brand})` : 'Machine'}
                 </h2>
               </div>
 

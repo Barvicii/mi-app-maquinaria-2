@@ -52,11 +52,11 @@
 }
 
 .loading-container {
-  @apply flex justify-center items-center h-64;
+  @apply flex flex-col items-center justify-center h-64;
 }
 
 .loading-text {
-  @apply text-lg text-gray-600;
+  @apply mt-4 text-gray-600 text-lg;
 }
 
 .empty-message {
@@ -87,7 +87,7 @@
 }
 
 .pagination-info {
-  @apply text-sm text-gray-600;
+  @apply text-sm text-gray-600 whitespace-nowrap;
 }
 
 .machinary-header {
@@ -116,4 +116,65 @@
 
 .loading-message {
     @apply p-4 mb-4 text-gray-700 bg-gray-100 rounded-lg;
+}
+
+/* Add these animation styles */
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+
+.loading-spinner {
+  @apply w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin;
+}
+
+/* Update button styles */
+.machinary-header button:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+/* Add transition for smooth state changes */
+.machinary-header button {
+  transition: all 0.2s ease-in-out;
+}
+
+.machinary-header button:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.machinary-header button:active:not(:disabled) {
+  transform: translateY(0px);
+}
+
+.header-container {
+  @apply flex justify-between items-center mb-6 w-full;
+}
+
+.header-right {
+  @apply flex items-center gap-4 ml-auto;
+}
+
+.records-count {
+  @apply text-sm text-gray-600 whitespace-nowrap;
+}
+
+.refresh-button:disabled {
+  @apply opacity-70 cursor-not-allowed;
+}
+
+.refresh-button:hover:not(:disabled) {
+  @apply transform -translate-y-0.5 transition-transform;
+}
+
+.refresh-button:active:not(:disabled) {
+  @apply transform translate-y-0;
 }
