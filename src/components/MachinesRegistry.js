@@ -1,6 +1,7 @@
 "use client";
 import React, { useState, useEffect } from 'react';
-import { Wrench, Clipboard, Bell, Settings, QrCode, Users } from 'lucide-react';
+import { useSession } from 'next-auth/react';
+import NavBar from './NavBar';
 import QRGeneratorSimple from './QRGeneratorSimple';
 import TabPreStart from './TabPreStart';
 import TabServices from './TabServices';
@@ -11,14 +12,9 @@ import '../styles/layout.css';
 import '../styles/machinary.css';
 import '../styles/tables.css';
 
-
-// Note: MachineModal is temporarily removed to simplify debugging
-
 const MachinesRegistry = () => {
-  // Estado para la navegación entre pestañas
+  const { data: session } = useSession();
   const [activeTab, setActiveTab] = useState('machines');
-
-  // Estados principales
   const [maquinas, setMaquinas] = useState([]);
   const [prestartRecords, setPrestartRecords] = useState([]);
   const [serviceRecords, setServiceRecords] = useState([]);
@@ -39,15 +35,24 @@ const MachinesRegistry = () => {
   }, []);
 
   useEffect(() => {
-    try {
-      const maquinasGuardadas = JSON.parse(localStorage.getItem('maquinas') || '[]');
-      setMaquinas(maquinasGuardadas);
-    } catch (error) {
-      console.error('Error loading machines:', error);
-    }
-  }, []);
+    const fetchMachines = async () => {
+      try {
+        const response = await fetch('/api/machines');
+        if (!response.ok) {
+          throw new Error('Error fetching machines');
+        }
+        const data = await response.json();
+        setMaquinas(data);
+      } catch (error) {
+        console.error('Error loading machines:', error);
+      }
+    };
 
-  // Manejadores
+    if (session) {
+      fetchMachines();
+    }
+  }, [session]);
+
   const handleTabChange = (tab) => {
     setActiveTab(tab);
   };
@@ -68,55 +73,6 @@ const MachinesRegistry = () => {
     }
   };
 
-  // Componente de navegación
-  const Navigation = () => (
-    <nav className="navigation-container">
-      <button
-        className={`nav-button ${activeTab === 'machines' ? 'nav-button-active' : 'nav-button-inactive'}`}
-        onClick={() => handleTabChange('machines')}
-      >
-        <Wrench className="nav-icon" />
-        <span>Machines</span>
-      </button>
-      <button
-        className={`nav-button ${activeTab === 'prestart' ? 'nav-button-active' : 'nav-button-inactive'}`}
-        onClick={() => handleTabChange('prestart')}
-      >
-        <Clipboard className="nav-icon" />
-        <span>Pre-Start</span>
-      </button>
-      <button
-        className={`nav-button ${activeTab === 'services' ? 'nav-button-active' : 'nav-button-inactive'}`}
-        onClick={() => handleTabChange('services')}
-      >
-        <Settings className="nav-icon" />
-        <span>Services</span>
-      </button>
-      <button
-        className={`nav-button ${activeTab === 'alertas' ? 'nav-button-active' : 'nav-button-inactive'}`}
-        onClick={() => handleTabChange('alertas')}
-      >
-        <Bell className="nav-icon" />
-        <span>Alerts</span>
-      </button>
-      <button
-        className={`nav-button ${activeTab === 'qr' ? 'nav-button-active' : 'nav-button-inactive'}`}
-        onClick={() => handleTabChange('qr')}
-      >
-        <QrCode className="nav-icon" />
-        <span>QR</span>
-      </button>
-      <button
-        className={`nav-button ${activeTab === 'operators' ? 'nav-button-active' : 'nav-button-inactive'}`}
-        onClick={() => handleTabChange('operators')}
-      >
-        <Users className="nav-icon" />
-        <span>Operators</span>
-      </button>
-    </nav>
-  );
-
-  // Inicio del renderizado principal
   return (
     <div className="page-layout">
       <div className="container-layout">
@@ -127,7 +83,7 @@ const MachinesRegistry = () => {
               <img src="/Imagen/logoo.png" alt="Logo" className="logo-image" />
               <span className="brand-text">Orchard Service</span>
             </div>
-            <Navigation />
+            <NavBar activeTab={activeTab} onTabChange={handleTabChange} />
           </header>
 
           {/* Main Content */}

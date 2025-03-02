@@ -1,78 +1,39 @@
 'use client';
 
 import React from 'react';
-import Link from 'next/link';
+import { Wrench, Clipboard, Bell, Settings, QrCode, Users } from 'lucide-react';
 import { useSession, signOut } from 'next-auth/react';
-import { Wrench, Clipboard, Bell, Settings, QrCode, Users, User, LogOut } from 'lucide-react';
+import { usePathname } from 'next/navigation';
+import UserMenu from './UserMenu';
 
 const NavBar = ({ activeTab, onTabChange }) => {
-  const { data: session } = useSession();
+  const tabs = [
+    { id: 'machines', label: 'Machines', Icon: Wrench },
+    { id: 'prestart', label: 'Pre-Start', Icon: Clipboard },
+    { id: 'services', label: 'Services', Icon: Settings },
+    { id: 'alertas', label: 'Alerts', Icon: Bell },
+    { id: 'qr', label: 'QR', Icon: QrCode },
+    { id: 'operators', label: 'Operators', Icon: Users },
+  ];
 
   return (
-    <nav className="navigation-container">
-      <button
-        className={`nav-button ${activeTab === 'machines' ? 'nav-button-active' : 'nav-button-inactive'}`}
-        onClick={() => onTabChange('machines')}
-      >
-        <Wrench className="nav-icon" />
-        <span>Machines</span>
-      </button>
-      <button
-        className={`nav-button ${activeTab === 'prestart' ? 'nav-button-active' : 'nav-button-inactive'}`}
-        onClick={() => onTabChange('prestart')}
-      >
-        <Clipboard className="nav-icon" />
-        <span>Pre-Start</span>
-      </button>
-      <button
-        className={`nav-button ${activeTab === 'services' ? 'nav-button-active' : 'nav-button-inactive'}`}
-        onClick={() => onTabChange('services')}
-      >
-        <Settings className="nav-icon" />
-        <span>Services</span>
-      </button>
-      <button
-        className={`nav-button ${activeTab === 'alertas' ? 'nav-button-active' : 'nav-button-inactive'}`}
-        onClick={() => onTabChange('alertas')}
-      >
-        <Bell className="nav-icon" />
-        <span>Alerts</span>
-      </button>
-      <button
-        className={`nav-button ${activeTab === 'qr' ? 'nav-button-active' : 'nav-button-inactive'}`}
-        onClick={() => onTabChange('qr')}
-      >
-        <QrCode className="nav-icon" />
-        <span>QR</span>
-      </button>
-      <button
-        className={`nav-button ${activeTab === 'operators' ? 'nav-button-active' : 'nav-button-inactive'}`}
-        onClick={() => onTabChange('operators')}
-      >
-        <Users className="nav-icon" />
-        <span>Operators</span>
-      </button>
-      
-      {/* User menu buttons */}
-      {session && (
-        <div className="ml-auto flex items-center space-x-2">
-          <Link 
-            href="/profile" 
-            className="nav-button nav-button-inactive flex items-center"
-          >
-            <User className="nav-icon" />
-            <span className="hidden md:inline">Profile</span>
-          </Link>
+    <div className="nav-and-user-container">
+      <nav className="navigation-container">
+        {tabs.map(({ id, label, Icon }) => (
           <button
-            onClick={() => signOut({ callbackUrl: '/login' })}
-            className="nav-button nav-button-inactive flex items-center"
+            key={id}
+            className={`nav-button ${
+              activeTab === id ? 'nav-button-active' : 'nav-button-inactive'
+            }`}
+            onClick={() => onTabChange(id)}
           >
-            <LogOut className="nav-icon" />
-            <span className="hidden md:inline">Logout</span>
+            <Icon className="nav-icon" />
+            <span>{label}</span>
           </button>
-        </div>
-      )}
-    </nav>
+        ))}
+      </nav>
+      <UserMenu />
+    </div>
   );
 };
 

@@ -76,10 +76,13 @@ const MachineSchema = new mongoose.Schema({
             brand: { type: String, default: '' }
         }
     },
-    // New fields for user association
     userId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'User',
+        type: String,
+        required: true,
+        index: true
+    },
+    name: {
+        type: String,
         required: true
     },
     organization: {
@@ -89,6 +92,10 @@ const MachineSchema = new mongoose.Schema({
     isPublic: {
         type: Boolean,
         default: false
+    },
+    createdAt: {
+        type: Date,
+        default: Date.now
     }
 }, {
     timestamps: true,

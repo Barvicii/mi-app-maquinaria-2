@@ -1,46 +1,73 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { signIn } from 'next-auth/react';
+import { signIn, useSession } from 'next-auth/react';
 import Link from 'next/link';
 
 export default function LoginPage() {
   const router = useRouter();
+  const { data: session, status } = useSession();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  // Redirect if already authenticated
+  useEffect(() => {
+    if (status === 'authenticated') {
+      router.push('/tabmachinary'); // Redirect to tabmachinary page
+    }
+  }, [status, router]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     setError('');
 
-    try {
-      const formData = new FormData(e.currentTarget);
-      console.log('Attempting login...'); // Debug log
+    const formData = new FormData(e.currentTarget);
+    const email = formData.get('email');
+    const password = formData.get('password');
 
+    try {
+      console.log('Attempting login with:', email);
       const result = await signIn('credentials', {
-        email: formData.get('email'),
-        password: formData.get('password'),
-        redirect: false
+        email,
+        password,
+        redirect: false,
       });
 
-      console.log('Login result:', result); // Debug log
+      console.log('Login result:', result);
 
       if (result?.error) {
-        console.log('Login error:', result.error); // Debug log
-        setError(result.error);
-      } else {
-        console.log('Login successful, redirecting...'); // Debug log
+        setError('Invalid email or password');
+      } else if (result?.ok) {
         router.push('/tabmachinary');
+        router.refresh();
       }
     } catch (error) {
       console.error('Login error:', error);
-      setError('An error occurred');
+      setError('An error occurred during login');
     } finally {
       setLoading(false);
     }
   };
+
+  // If still checking authentication status, show loading
+  if (status === 'loading') {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-100">
+        <div className="bg-white p-8 rounded-lg shadow-lg">
+          <div className="flex justify-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Don't render the login form if already authenticated
+  if (status === 'authenticated') {
+    return null;
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-100">
@@ -89,7 +116,7 @@ export default function LoginPage() {
             className="w-full bg-indigo-600 text-white py-2 rounded-lg hover:bg-indigo-700 transition"
             disabled={loading}
           >
-            {loading ? 'Loading...' : 'Login'}
+            {loading ? 'Logging in...' : 'Login'}
           </button>
         </form>
         

@@ -1,45 +1,57 @@
 import NextAuth from 'next-auth';
 import CredentialsProvider from 'next-auth/providers/credentials';
+import { connectDB } from '@/lib/mongodb';
 import bcrypt from 'bcryptjs';
-import dbConnect from '@/lib/dbConnect';
-import User from '@/models/User';
 
-const handler = NextAuth({
+export const authOptions = {
+  debug: true, // Remove in production
   providers: [
     CredentialsProvider({
       name: 'Credentials',
+      credentials: {
+        email: { label: "Email", type: "email" },
+        password: { label: "Password", type: "password" }
+      },
       async authorize(credentials) {
+        if (!credentials?.email || !credentials?.password) {
+          console.log('Missing credentials');
+          return null;
+        }
+
         try {
-          console.log('Starting authorization...'); // Debug log
-          await dbConnect();
+          const db = await connectDB();
+          const user = await db.collection('users').findOne({ 
+            email: credentials.email.toLowerCase()
+          });
 
-          const user = await User.findOne({ email: credentials.email })
-            .select('+password');
-
-          console.log('User found:', user ? 'Yes' : 'No'); // Debug log
+          console.log('Found user:', user ? 'yes' : 'no');
 
           if (!user) {
-            throw new Error('Invalid credentials');
+            console.log('No user found');
+            return null;
           }
 
-          const isValid = await bcrypt.compare(
-            credentials.password,
-            user.password
-          );
-
-          console.log('Password valid:', isValid); // Debug log
-
-          if (!isValid) {
-            throw new Error('Invalid credentials');
+          // For plain text passwords (temporary, not recommended for production)
+          if (credentials.password === user.password) {
+            return {
+              id: user._id.toString(),
+              email: user.email,
+              name: user.name || user.email
+            };
           }
 
-          console.log('Authorization successful'); // Debug log
-          
-          return {
-            id: user._id.toString(),
-            email: user.email,
-            role: user.role
-          };
+          // For hashed passwords (recommended for production)
+          // const isValid = await bcrypt.compare(credentials.password, user.password);
+          // if (isValid) {
+          //   return {
+          //     id: user._id.toString(),
+          //     email: user.email,
+          //     name: user.name || user.email
+          //   };
+          // }
+
+          console.log('Invalid password');
+          return null;
         } catch (error) {
           console.error('Auth error:', error);
           return null;
@@ -49,34 +61,30 @@ const handler = NextAuth({
   ],
   session: {
     strategy: "jwt",
-    maxAge: 24 * 60 * 60,
+    maxAge: 30 * 24 * 60 * 60, // 30 days
+  },
+  pages: {
+    signIn: '/login',
+    error: '/login', 
   },
   callbacks: {
     async jwt({ token, user }) {
-      console.log('JWT Callback - User:', user ? 'Present' : 'Missing'); // Debug log
       if (user) {
         token.id = user.id;
-        token.role = user.role;
+        token.email = user.email;
       }
       return token;
     },
     async session({ session, token }) {
-      console.log('Session Callback - Token:', token ? 'Present' : 'Missing'); // Debug log
       if (token) {
         session.user.id = token.id;
-        session.user.role = token.role;
+        session.user.email = token.email;
       }
       return session;
-    },
-    async redirect({ url, baseUrl }) {
-      // Permitir que el cliente maneje la redirección
-      return url.startsWith(baseUrl) ? url : baseUrl
-    },
+    }
   },
-  pages: {
-    signIn: '/login'
-  },
-  debug: true
-});
+  secret: process.env.NEXTAUTH_SECRET
+};
 
+const handler = NextAuth(authOptions);
 export { handler as GET, handler as POST };

@@ -1,5 +1,7 @@
 import { Geist, Geist_Mono } from "next/font/google";
 import { Inter } from 'next/font/google';
+import { SessionProvider } from 'next-auth/react';
+import { AuthProvider } from '@/components/AuthProvider';
 import "./globals.css";
 import '../styles/tables.css';
 
@@ -29,7 +31,9 @@ export default function RootLayout({ children }) {
   return (
     <html lang="en">
       <body className={`${inter.className} antialiased`}>
-        {children}
+        <AuthProvider>
+          {children}
+        </AuthProvider>
       </body>
     </html>
   );

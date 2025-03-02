@@ -228,3 +228,67 @@ body {
   background-color: #F5F5DC;
 }
 
+/* User Menu Dropdown Styles */
+.user-menu-dropdown {
+  animation: fadeIn 0.2s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Navigation styles */
+.navigation-container {
+  @apply flex items-center space-x-2 mr-4; /* Added margin-right */
+}
+
+.nav-button {
+  @apply flex items-center space-x-2 px-4 py-2 rounded-md transition-colors
+         text-sm font-medium focus:outline-none;
+}
+
+.nav-icon {
+  @apply w-4 h-4;
+}
+
+.nav-button-active {
+  @apply bg-white text-blue-600;
+}
+
+.nav-button-inactive {
+  @apply text-white hover:bg-blue-500;
+}
+
+/* Update UserMenu styles */
+.user-avatar {
+  @apply w-8 h-8 rounded-full bg-blue-700 text-white 
+         flex items-center justify-center text-sm font-semibold
+         transition-transform hover:scale-105;
+}
+
+.user-menu-container {
+  @apply relative z-50;
+}
+
+.user-menu-dropdown {
+  @apply absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1
+         ring-1 ring-black ring-opacity-5 focus:outline-none;
+  animation: fadeIn 0.2s ease-out;
+}
+
+/* Add header container styles */
+.header-container {
+  @apply flex justify-between items-center w-full px-4;
+}
+
+.nav-and-user-container {
+  @apply flex items-center space-x-4; /* Added space between nav and user menu */
+}
+

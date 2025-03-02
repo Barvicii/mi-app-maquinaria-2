@@ -1,11 +1,15 @@
-import React, { useState, useEffect } from 'react';
+'use client';
+
+import { useState, useEffect } from 'react';
+import { useSession } from 'next-auth/react';
 import { PlusCircle, Edit2, Trash2, Eye, AlertTriangle, RefreshCw } from 'lucide-react';
 import MachineModal from './MachineModal';
 import DetailsModal from './DetailsModal';
 import '../styles/tables.css';
 import Notification from './Notification';
 
-const TabMachinary = () => {
+export default function TabMachinary() {
+    const { data: session } = useSession();
     const [machines, setMachines] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -63,8 +67,10 @@ const TabMachinary = () => {
     };
 
     useEffect(() => {
-        fetchMachines();
-    }, []);
+        if (session) {
+            fetchMachines();
+        }
+    }, [session]);
 
     const handleCloseModal = () => {
         setShowModal(false);
@@ -72,63 +78,92 @@ const TabMachinary = () => {
     };
 
     const handleDelete = async (id) => {
-        if (window.confirm('Are you sure you want to delete this machine?')) {
-            try {
-                const response = await fetch(`/api/machines/${id}`, {
-                    method: 'DELETE',
-                });
-                
-                if (!response.ok) {
-                    const errorData = await response.json().catch(() => ({}));
-                    throw new Error(errorData.error || 'Error deleting machine');
-                }
-                
-                // Show notification
-                setNotificationMessage('Machine deleted successfully');
-                setShowNotification(true);
-                
-                // Refresh the list
-                await fetchMachines();
-            } catch (error) {
-                console.error('Error deleting machine:', error);
-                setNotificationMessage('Failed to delete machine: ' + error.message);
-                setShowNotification(true);
+        try {
+            console.log('Deleting machine:', id);
+            const response = await fetch(`/api/machines?id=${id}`, {
+                method: 'DELETE',
+            });
+
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.message || 'Failed to delete machine');
             }
+
+            console.log('Machine deleted successfully');
+            await fetchMachines(); // Refresh the list
+        } catch (error) {
+            console.error('Error deleting machine:', error);
+            alert(`Error deleting machine: ${error.message}`);
         }
     };
 
     const handleSubmit = async (formData) => {
+        try {
+            const isEditing = modalType === 'edit';
+            const url = '/api/machines';
+            const method = isEditing ? 'PUT' : 'POST';
+
+            console.log(`${isEditing ? 'Updating' : 'Creating'} machine:`, formData);
+
+            const response = await fetch(url, {
+                method,
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    ...formData,
+                    _id: isEditing ? selectedMachine._id : undefined
+                })
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.error || 'Failed to save machine');
+            }
+
+            // Show success notification
+            setNotificationMessage(
+                isEditing ? 'Machine updated successfully' : 'Machine created successfully'
+            );
+            setShowNotification(true);
+
+            // Close modal and refresh list
+            setShowModal(false);
+            await fetchMachines();
+
+            // Auto-hide notification after 3 seconds
+            setTimeout(() => {
+                setShowNotification(false);
+            }, 3000);
+        } catch (error) {
+            console.error('Error saving machine:', error);
+            setNotificationMessage(`Error: ${error.message}`);
+            setShowNotification(true);
+        }
+    };
+
+    const handleAddMachine = async (machineData) => {
         try {
             const response = await fetch('/api/machines', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify(formData)
+                body: JSON.stringify(machineData),
             });
 
-            const data = await response.json();
-
-            if (response.ok) {
-                // Show success notification like delete
-                setNotification({
-                    show: true,
-                    message: data.message || 'Machine saved successfully',
-                    type: 'success'
-                });
-
-                // Close modal and refresh list
-                setShowModal(false);
-                fetchMachines();
-
-                // Auto-hide notification after 3 seconds
-                setTimeout(() => {
-                    setNotification(prev => ({ ...prev, show: false }));
-                }, 3000);
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.message || 'Failed to add machine');
             }
+
+            const newMachine = await response.json();
+            console.log('New machine added:', newMachine);
+            await fetchMachines(); // Refresh the list
         } catch (error) {
-            console.error('Error:', error);
-            // Don't show error notification
+            console.error('Error adding machine:', error);
+            throw error;
         }
     };
 
@@ -336,5 +371,3 @@ const TabMachinary = () => {
         </>
     );
 };
-
-export default TabMachinary;

@@ -1,7 +1,11 @@
+'use client';
+
 import React, { useState, useEffect } from 'react';
+import { useSession } from 'next-auth/react';
 import '../styles/machinemodal.css';
 
 const MachineModal = ({ show, type, machine, onClose, onSubmit }) => {
+  const { data: session } = useSession();
   const [activeTab, setActiveTab] = useState('basic');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -210,7 +214,10 @@ const MachineModal = ({ show, type, machine, onClose, onSubmit }) => {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(formData)
+        body: JSON.stringify({
+          ...formData,
+          userId: session?.user?.id, // Add user ID to machine data
+        }),
       });
 
       const data = await response.json();

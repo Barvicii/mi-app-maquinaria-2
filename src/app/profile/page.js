@@ -23,6 +23,7 @@ export default function ProfilePage() {
     newPassword: '',
     confirmPassword: ''
   });
+  const [isEditing, setIsEditing] = useState(false);
 
   // Fetch user data when session is available
   useEffect(() => {
