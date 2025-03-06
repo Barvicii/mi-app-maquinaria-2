@@ -1,38 +1,46 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
-import ServiceForm from '@/components/ServiceForm';
+import { useState, useCallback, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { toast } from 'react-toastify';
+import ServiceForm from '@/components/ServiceForm';
 
-const ServicePage = ({ params }) => {
-  const [error, setError] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [maquina, setMaquina] = useState(null);
+const ServicePageClient = ({ id }) => {
   const router = useRouter();
-
-  // Use React.use() to unwrap the params before accessing id
-  const id = React.use(params).id;
+  const [machine, setMachine] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   const fetchMaquina = useCallback(async () => {
-    if (!id) return;
-    
+    if (!id) {
+      console.error('No machine ID provided');
+      setError('No machine ID provided');
+      setLoading(false);
+      return;
+    }
+
     try {
       setLoading(true);
-      const response = await fetch(`/api/machines/${id}`, {
-        // Add cache: 'no-store' to avoid caching
-        cache: 'no-store'
-      });
-      
+      setError(null);
+
+      console.log('Fetching machine with ID:', id);
+      const response = await fetch(`/api/machines/${id}`);
+      const data = await response.json();
+
+      // Add console log to check the machine data
+      console.log('Machine data from API:', data);
+
       if (!response.ok) {
-        throw new Error(response.status === 404 ? 'Máquina no encontrada' : 'Error al cargar la máquina');
+        throw new Error(data.message || 'Error loading machine');
       }
 
-      const data = await response.json();
-      setMaquina(data);
-      setError(null);
+      console.log('Machine data received:', data);
+      setMachine(data);
+
     } catch (error) {
       console.error('Error fetching machine:', error);
       setError(error.message);
+      toast.error(error.message);
     } finally {
       setLoading(false);
     }
@@ -44,49 +52,28 @@ const ServicePage = ({ params }) => {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-100">
-        <div className="bg-white p-8 rounded-lg shadow-lg">
-          <p className="text-lg text-black">Cargando...</p>
-        </div>
+      <div className="flex justify-center items-center min-h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-100">
-        <div className="bg-white p-8 rounded-lg shadow-lg">
-          <h2 className="text-2xl font-bold text-red-600 mb-4">Error</h2>
-          <p className="text-black mb-4">{error}</p>
-          <button
-            onClick={() => router.back()}
-            className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700"
-          >
-            Volver
-          </button>
-        </div>
+      <div className="text-center py-4">
+        <div className="text-red-600">{error}</div>
+        <div className="text-sm text-gray-500 mt-2">Machine ID: {id}</div>
       </div>
     );
   }
 
-  if (!maquina) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-100">
-        <div className="bg-white p-8 rounded-lg shadow-lg">
-          <h2 className="text-2xl font-bold text-black mb-4">Máquina no encontrada</h2>
-          <p className="text-gray-600 mb-4">La máquina que estás buscando no existe.</p>
-          <button
-            onClick={() => router.back()}
-            className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700"
-          >
-            Volver
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  return <ServiceForm maquinaId={id} maquinaData={maquina} />;
+  return machine ? (
+    <ServiceForm machineId={id} machine={machine} />
+  ) : (
+    <div className="text-center py-4 text-gray-600">
+      No machine data available
+    </div>
+  );
 };
 
-export default ServicePage;
+export default ServicePageClient;

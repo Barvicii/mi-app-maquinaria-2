@@ -1,34 +1,27 @@
 import { NextResponse } from 'next/server';
-import dbConnect from '@/lib/dbConnect';
-import Machine from '@/models/Machine';
+import { connectDB } from '@/lib/mongodb';
+import { ObjectId } from 'mongodb';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '../../auth/[...nextauth]/route';
+import { headers } from 'next/headers';
 
 export async function GET(request, { params }) {
-    try {
-        await dbConnect();
-        const { id } = params;
-        
-        if (!id) {
-            return NextResponse.json({ error: 'ID not provided' }, { status: 400 });
-        }
+  try {
+    const { id } = params;
+    const db = await connectDB();
+    
+    const machine = await db.collection('machines').findOne({
+      _id: new ObjectId(id)
+    });
 
-        console.log('Searching for machine with ID:', id);
-
-        const machine = await Machine.findById(id);
-
-        if (!machine) {
-            console.log('Machine not found for ID:', id);
-            return NextResponse.json({ error: 'Machine not found' }, { status: 404 });
-        }
-
-        console.log('Machine found:', machine);
-        return NextResponse.json(machine);
-    } catch (error) {
-        console.error('Error finding machine:', error);
-        return NextResponse.json({ 
-            error: error.message,
-            stack: error.stack 
-        }, { status: 500 });
-    }
+    // Log what we found
+    console.log('Found machine:', machine);
+    
+    return NextResponse.json(machine);
+  } catch (error) {
+    console.error('Error fetching machine:', error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
 }
 
 export async function PUT(request, { params }) {

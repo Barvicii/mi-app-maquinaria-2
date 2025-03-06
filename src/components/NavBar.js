@@ -1,13 +1,13 @@
 'use client';
 
 import React from 'react';
-import { Wrench, Clipboard, Bell, Settings, QrCode, Users } from 'lucide-react';
-import { useSession, signOut } from 'next-auth/react';
-import { usePathname } from 'next/navigation';
+import { Wrench, Clipboard, Bell, Settings, QrCode, Users, BarChart2 } from 'lucide-react';
+import { useSession } from 'next-auth/react';
 import UserMenu from './UserMenu';
 
 const NavBar = ({ activeTab, onTabChange }) => {
   const tabs = [
+    { id: 'dashboard', label: 'Dashboard', Icon: BarChart2 },
     { id: 'machines', label: 'Machines', Icon: Wrench },
     { id: 'prestart', label: 'Pre-Start', Icon: Clipboard },
     { id: 'services', label: 'Services', Icon: Settings },

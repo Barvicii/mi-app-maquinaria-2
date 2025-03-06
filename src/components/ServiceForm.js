@@ -7,18 +7,24 @@ import Notification from './Notification';
 import { useRouter } from 'next/navigation';
 import '../styles/layout.css';
 import '../styles/machinary.css';
+import MachineDetails from './MachineDetails';
 
-const ServiceForm = ({ maquinaId, maquinaData }) => {
+const ServiceForm = ({ machineId, machine }) => {
+  // Add console log to check machine data
+  console.log('Machine data in ServiceForm:', machine);
+
   const router = useRouter();
   const [formType, setFormType] = useState('');
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [showNotification, setShowNotification] = useState(false);
   const [notificationMessage, setNotificationMessage] = useState('');
+  const [activeTab, setActiveTab] = useState('prestart');
   
-  // Use the provided maquinaData instead of fetching it again
-  const [maquina] = useState(maquinaData);
+  // Use the provided machine instead of fetching it again
+  const [maquina] = useState(machine);
 
   const [prestartData, setPrestartData] = useState({
+    maquinaId: machineId, // Añadido maquinaId al estado inicial
     horasMaquina: '',
     aceite: false,
     agua: false,
@@ -34,6 +40,7 @@ const ServiceForm = ({ maquinaId, maquinaData }) => {
   });
 
   const [serviceData, setServiceData] = useState({
+    maquinaId: machineId, // Añadido maquinaId al estado inicial
     tipoService: '',
     horasActuales: '',
     horasProximoService: '',
@@ -44,12 +51,10 @@ const ServiceForm = ({ maquinaId, maquinaData }) => {
     maquina: maquina?.model || maquina?.modelo || ''
   });
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    
+  const handleSubmit = async (formData) => {
     try {
-      const formData = {
-        maquinaId: maquinaId.toString(),
+      const submissionData = {
+        maquinaId: machineId.toString(),
         fecha: new Date().toISOString(),
         tipo: formType,
         datos: formType === 'prestart' ? {
@@ -61,7 +66,7 @@ const ServiceForm = ({ maquinaId, maquinaData }) => {
         }
       };
 
-      console.log('Submitting form data:', formData);
+      console.log('Submitting form data:', submissionData);
 
       const endpoint = formType === 'prestart' ? '/api/prestart' : '/api/services';
       const response = await fetch(endpoint, {
@@ -69,7 +74,7 @@ const ServiceForm = ({ maquinaId, maquinaData }) => {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(submissionData),
       });
 
       if (!response.ok) {
@@ -86,6 +91,7 @@ const ServiceForm = ({ maquinaId, maquinaData }) => {
       // Reset form data
       if (formType === 'prestart') {
         setPrestartData({
+          maquinaId: machineId, // Mantener el maquinaId al resetear
           horasMaquina: '',
           aceite: false,
           agua: false,
@@ -101,6 +107,7 @@ const ServiceForm = ({ maquinaId, maquinaData }) => {
         });
       } else {
         setServiceData({
+          maquinaId: machineId, // Mantener el maquinaId al resetear
           tipoService: '',
           horasActuales: '',
           horasProximoService: '',
@@ -126,13 +133,13 @@ const ServiceForm = ({ maquinaId, maquinaData }) => {
 
   const InitialSelection = () => (
     <div className="space-y-6 text-center">
-      {/* Logo centrado */}
+      {/* Logo section */}
       <div className="space-y-6 text-center">
         <div className="flex justify-center">
           <img 
             src="/Imagen/logoo.png" 
             alt="Logo" 
-            className="w-60 h-auto" // Cambia el ancho, el alto se ajustará automáticamente
+            className="w-60 h-auto"
           />
         </div>
       </div>
@@ -141,7 +148,12 @@ const ServiceForm = ({ maquinaId, maquinaData }) => {
       <span className="brand-text">Orchard Service</span>
   
       <h2 className="text-2xl font-bold text-black">
-        {maquina ? `${maquina.nombre || maquina.model || maquina.modelo} (${maquina.marca || maquina.brand})` : 'Select an option'}
+        {machine && (
+          <pre className="text-sm text-gray-500">
+
+          </pre>
+        )}
+        {machine ? `${machine.Machine_ID || machine.customId || machine.machineId || 'ID not found'}` : 'Select an option'}
       </h2>
       <p className="text-black mb-8">Choose what you want to do:</p>
       <div className="grid grid-cols-1 gap-4 max-w-md mx-auto">
@@ -199,7 +211,7 @@ const ServiceForm = ({ maquinaId, maquinaData }) => {
             <>
               <div className="text-center mb-6">
                 <h2 className="text-2xl font-bold text-black">
-                  {maquina ? `${maquina.nombre || maquina.model || maquina.modelo} (${maquina.marca || maquina.brand})` : 'Machine'}
+                {machine ? `${machine.Machine_ID || machine.customId || machine.machineId || 'ID not found'}` : 'Select an option'}
                 </h2>
               </div>
 
@@ -226,10 +238,11 @@ const ServiceForm = ({ maquinaId, maquinaData }) => {
                 <div className="flex flex-col items-center">
                   <BackButton />
                   <h3 className="text-xl font-medium text-black mb-4">Service Record</h3>
-                  <ServiceFormComponent
+                  <ServiceFormComponent 
+                    onSubmit={handleSubmit}
                     serviceData={serviceData}
                     setServiceData={setServiceData}
-                    handleSubmit={handleSubmit}
+                    maquinaId={machineId}
                   />
                 </div>
               )}

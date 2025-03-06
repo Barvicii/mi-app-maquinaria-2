@@ -7,6 +7,7 @@ import Notification from './Notification';
 
 const TabPreStart = () => {
   const [prestartRecords, setPrestartRecords] = useState([]);
+  const [machines, setMachines] = useState([]);
   const [selectedRecord, setSelectedRecord] = useState(null);
   const [showDetails, setShowDetails] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
@@ -33,6 +34,24 @@ const TabPreStart = () => {
   const currentItems = prestartRecords.slice(indexOfFirstItem, indexOfLastItem);
   const totalPages = Math.ceil(prestartRecords.length / itemsPerPage);
 
+  // Fetch machines to get their custom IDs
+  useEffect(() => {
+    const fetchMachines = async () => {
+      try {
+        const response = await fetch('/api/machines');
+        if (response.ok) {
+          const data = await response.json();
+          setMachines(data);
+          console.log("Machines loaded:", data);
+        }
+      } catch (error) {
+        console.error("Error loading machines:", error);
+      }
+    };
+    
+    fetchMachines();
+  }, []);
+
   const fetchPrestarts = async (showNotification = false) => {
     try {
       setLoading(true);
@@ -47,6 +66,10 @@ const TabPreStart = () => {
       
       // Handle both direct array response and data property in response
       const records = Array.isArray(data) ? data : (data.data || []);
+      
+      // Log para depuración
+      console.log("PreStart records loaded:", records);
+      
       setPrestartRecords(records);
 
       // Update records count
@@ -114,16 +137,55 @@ const TabPreStart = () => {
 
   const paginate = (pageNumber) => setCurrentPage(pageNumber);
 
-  // Render status badge with appropriate color
-  const renderStatusBadge = (status) => {
-    const isOk = status === 'OK' || status === 'completado';
+  // Update the renderStatusBadge function
+  const renderStatusBadge = (record) => {
+    const checkItems = [
+      'aceite',
+      'agua',
+      'neumaticos',
+      'nivelCombustible',
+      'lucesYAlarmas',
+      'frenos',
+      'extintores',
+      'cinturonSeguridad'
+    ];
+
+    const allChecksPass = checkItems.every(item => record[item] === true);
+
     return (
       <span className={`status-badge ${
-        isOk ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
+        allChecksPass ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
       }`}>
-        {status || 'Pending'}
+        {allChecksPass ? 'OK' : 'Needs Review'}
       </span>
     );
+  };
+
+  // Helper function to get the custom machine ID (the one assigned by the user)
+  const getCustomMachineId = (record) => {
+    // First extract the database machine ID
+    let dbMachineId = '';
+    if (record.machineId) dbMachineId = record.machineId;
+    else if (record.maquinaId) dbMachineId = record.maquinaId;
+    else if (record.datos && record.datos.machineId) dbMachineId = record.datos.machineId;
+    else if (record.datos && record.datos.maquinaId) dbMachineId = record.datos.maquinaId;
+    
+    // Now try to find the matching machine to get its custom ID
+    if (dbMachineId) {
+      const machine = machines.find(m => m._id === dbMachineId);
+      if (machine) {
+        // Return the custom ID assigned by the user
+        return machine.machineId || machine.maquinariaId || 'No custom ID';
+      }
+    }
+    
+    // If no machine found or no ID, try to get the custom ID directly from the prestart
+    if (record.maquina) {
+      return record.maquina;
+    }
+    
+    // Fallback
+    return "ID not found";
   };
 
   return (
@@ -193,7 +255,7 @@ const TabPreStart = () => {
               <thead>
                 <tr>
                   <th className="table-cell text-left">Date</th>
-                  <th className="table-cell text-left">Machine</th>
+                  <th className="table-cell text-left">Machine ID</th>
                   <th className="table-cell text-left">Operator</th>
                   <th className="table-cell text-left">Hours</th>
                   <th className="table-cell text-left">Status</th>
@@ -207,11 +269,14 @@ const TabPreStart = () => {
                     <td className="table-cell">
                       {new Date(record.createdAt || record.fecha).toLocaleDateString()}
                     </td>
-                    <td className="table-cell">{record.maquinaId || '-'}</td>
+                    <td className="table-cell">
+                      {/* Mostrar el ID personalizado de la máquina */}
+                      {getCustomMachineId(record)}
+                    </td>
                     <td className="table-cell">{record.operador}</td>
                     <td className="table-cell">{record.horasMaquina}</td>
                     <td className="table-cell">
-                      {renderStatusBadge(record.estado)}
+                      {renderStatusBadge(record)}
                     </td>
                     <td className="table-cell">
                       {record.observaciones ? 

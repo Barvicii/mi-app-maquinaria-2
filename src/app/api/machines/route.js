@@ -8,30 +8,57 @@ export async function POST(request) {
   try {
     const session = await getServerSession(authOptions);
     if (!session) {
-      console.log('No session found');
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+    }
+
+    const body = await request.json();
+    console.log('Received machine data:', body); // Debug log
+
+    // Validate required fields
+    if (!body.customId || !body.model || !body.marca) {
+      return NextResponse.json(
+        { error: "Missing required fields" },
+        { status: 400 }
+      );
     }
 
     const db = await connectDB();
-    const data = await request.json();
     
+    // Check for duplicate customId
+    const existingMachine = await db.collection('machines').findOne({ 
+      customId: body.customId,
+      userId: session.user.id
+    });
+
+    if (existingMachine) {
+      return NextResponse.json(
+        { error: "Machine ID already exists" },
+        { status: 400 }
+      );
+    }
+
     const newMachine = {
-      ...data,
+      ...body,
       userId: session.user.id,
       createdAt: new Date()
     };
 
-    console.log('Creating machine:', newMachine);
-    const result = await db.collection('machines').insertOne(newMachine);
-    console.log('Machine created with ID:', result.insertedId);
+    console.log('Creating new machine:', newMachine); // Debug log
 
+    const result = await db.collection('machines').insertOne(newMachine);
+    
+    // Return the created machine
     return NextResponse.json({
       _id: result.insertedId,
       ...newMachine
     });
+
   } catch (error) {
-    console.error('Create machine error:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error('POST machines error:', error);
+    return NextResponse.json(
+      { error: "Error creating machine" },
+      { status: 500 }
+    );
   }
 }
 
@@ -39,7 +66,7 @@ export async function GET() {
   try {
     const session = await getServerSession(authOptions);
     if (!session) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
     }
 
     const db = await connectDB();
@@ -47,52 +74,19 @@ export async function GET() {
       .find({ userId: session.user.id })
       .toArray();
 
-    console.log(`Found ${machines.length} machines for user ${session.user.id}`);
     return NextResponse.json(machines);
+
   } catch (error) {
-    console.error('Fetch machines error:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error('GET machines error:', error);
+    return NextResponse.json(
+      { error: "Error fetching machines" },
+      { status: 500 }
+    );
   }
 }
 
 export async function DELETE(request) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const { searchParams } = new URL(request.url);
-    const id = searchParams.get('id');
-    
-    if (!id) {
-      return NextResponse.json({ error: 'Machine ID is required' }, { status: 400 });
-    }
-
-    const db = await connectDB();
-    console.log('Attempting to delete machine:', id);
-    
-    const result = await db.collection('machines').deleteOne({
-      _id: new ObjectId(id),
-      userId: session.user.id
-    });
-
-    console.log('Delete result:', result);
-
-    if (result.deletedCount === 0) {
-      return NextResponse.json({ error: 'Machine not found' }, { status: 404 });
-    }
-
-    return NextResponse.json({ success: true });
-  } catch (error) {
-    console.error('Delete machine error:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
-}
-
-export async function PUT(request) {
-  try {
-    const session = await getServerSession(authOptions);
     if (!session) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }

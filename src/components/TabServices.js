@@ -1,10 +1,14 @@
+'use client';
+
 import React, { useState, useEffect } from 'react';
+import { useSession } from 'next-auth/react';
 import DetailsModal from './DetailsModal';
 import { Eye, Trash2, AlertTriangle, RefreshCw } from 'lucide-react';
 import '../styles/tables.css';
 import Notification from './Notification';
 
 const TabServices = () => {
+  const { data: session } = useSession();
   const [services, setServices] = useState([]);
   const [showDetails, setShowDetails] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState(null);
@@ -37,32 +41,40 @@ const TabServices = () => {
       setLoading(true);
       setError(null);
       setIsRefreshing(true);
+
+      if (!session) {
+        throw new Error('Not authenticated');
+      }
       
       console.log('Fetching services...');
       
       const response = await fetch('/api/services', {
-        cache: 'no-store', // Prevent caching
+        cache: 'no-store',
         headers: {
           'Cache-Control': 'no-cache'
         }
       });
       
-      console.log('Response status:', response.status);
-      
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        console.error('Error response:', errorData);
-        throw new Error(`Failed to fetch services: ${response.status} ${response.statusText} ${errorData.message || ''}`);
+        throw new Error(`Failed to fetch services: ${response.status} ${errorData.message || ''}`);
       }
       
       const data = await response.json();
-      console.log('Services data received:', data ? data.length : 'none');
       
-      // Handle both direct array response and data property
-      setServices(Array.isArray(data) ? data : (data.data || []));
+      // Filter services based on user's machines
+      const userMachinesResponse = await fetch('/api/machines');
+      const userMachines = await userMachinesResponse.json();
+      const userMachineIds = userMachines.map(m => m._id.toString());
+      
+      const filteredServices = Array.isArray(data) ? 
+        data.filter(service => userMachineIds.includes(service.maquinaId)) : [];
+      
+      console.log('Filtered services:', filteredServices.length);
+      setServices(filteredServices);
     } catch (error) {
       console.error('Error fetching services:', error);
-      setError(error.message || 'An error occurred while loading services');
+      setError(error.message);
     } finally {
       setLoading(false);
       setIsRefreshing(false);
@@ -70,8 +82,10 @@ const TabServices = () => {
   };
 
   useEffect(() => {
-    fetchServices();
-  }, []);
+    if (session) {
+      fetchServices();
+    }
+  }, [session]);
 
   const handleDelete = async (id) => {
     if (window.confirm('Are you sure you want to delete this record?')) {

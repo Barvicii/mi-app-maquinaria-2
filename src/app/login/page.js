@@ -27,8 +27,9 @@ export default function LoginPage() {
     const email = formData.get('email');
     const password = formData.get('password');
 
+    console.log('Attempting login:', { email, hasPassword: !!password });
+
     try {
-      console.log('Attempting login with:', email);
       const result = await signIn('credentials', {
         email,
         password,
@@ -40,7 +41,7 @@ export default function LoginPage() {
       if (result?.error) {
         setError('Invalid email or password');
       } else if (result?.ok) {
-        router.push('/tabmachinary');
+        router.push('/dashboard');
         router.refresh();
       }
     } catch (error) {
@@ -70,8 +71,8 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100">
-      <div className="bg-white p-8 rounded-lg shadow-lg w-full max-w-md">
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-md w-full space-y-8">
         {/* Logo */}
         <div className="flex justify-center mb-6">
           <img src="/Imagen/logoo.png" alt="Logo" className="h-20 w-auto" />
@@ -82,13 +83,13 @@ export default function LoginPage() {
         
         {/* Error message */}
         {error && (
-          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
-            {error}
+          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
+            <span className="block sm:inline">{error}</span>
           </div>
         )}
         
         {/* Form */}
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleSubmit} className="space-y-6">
           <div className="mb-4">
             <label className="block text-gray-700">Email</label>
             <input 

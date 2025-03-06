@@ -1,97 +1,25 @@
 import mongoose from 'mongoose';
 
 const MachineSchema = new mongoose.Schema({
-    model: { 
+    modelo: { 
         type: String, 
-        required: [true, 'El modelo de la máquina es requerido'],
-        trim: true 
-    },
-    brand: { 
-        type: String, 
-        required: [true, 'La marca de la máquina es requerida'],
-        trim: true 
-    },
-    serialNumber: { 
-        type: String, 
-        trim: true,
-        default: '' 
-    },
-    machineId: { 
-        type: String, 
-        trim: true,
-        default: '' 
-    },
-    year: { 
-        type: String, 
-        trim: true,
-        default: '' 
-    },
-    currentHours: { 
-        type: String, 
-        default: '0',
-        trim: true 
-    },
-    lastService: { 
-        type: String, 
-        default: '',
-        trim: true 
-    },
-    nextService: { 
-        type: String, 
-        default: '',
-        trim: true 
-    },
-    engineOil: {
-        type: { type: String, default: '' },
-        capacity: { type: String, default: '' },
-        brand: { type: String, default: '' }
-    },
-    hydraulicOil: {
-        type: { type: String, default: '' },
-        capacity: { type: String, default: '' },
-        brand: { type: String, default: '' }
-    },
-    transmissionOil: {
-        type: { type: String, default: '' },
-        capacity: { type: String, default: '' },
-        brand: { type: String, default: '' }
-    },
-    filters: {
-        engine: { type: String, default: '' },
-        engineBrand: { type: String, default: '' },
-        transmission: { type: String, default: '' },
-        transmissionBrand: { type: String, default: '' },
-        fuel: { type: String, default: '' },
-        fuelBrand: { type: String, default: '' }
-    },
-    tires: {
-        front: {
-            size: { type: String, default: '' },
-            pressure: { type: String, default: '' },
-            brand: { type: String, default: '' }
-        },
-        rear: {
-            size: { type: String, default: '' },
-            pressure: { type: String, default: '' },
-            brand: { type: String, default: '' }
-        }
-    },
-    userId: {
-        type: String,
-        required: true,
-        index: true
-    },
-    name: {
-        type: String,
         required: true
     },
-    organization: {
-        type: String,
-        default: 'Default'
+    serie: { 
+        type: String, 
+        required: true
     },
-    isPublic: {
-        type: Boolean,
-        default: false
+    userId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        required: true
+    },
+    horasActuales: { 
+        type: Number, 
+        default: 0
+    },
+    proximoService: { 
+        type: Number
     },
     createdAt: {
         type: Date,

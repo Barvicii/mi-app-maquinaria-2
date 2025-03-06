@@ -1,10 +1,15 @@
-// Import the new QRPrintCard component at the top of QRGeneratorSimple.js
+'use client';
+
 import React, { useState, useEffect } from 'react';
-import { QRCodeSVG } from 'qrcode.react';
+import { QRCodeSVG, QRCodeCanvas } from 'qrcode.react';
 import { Trash2 } from 'lucide-react';
 import QRPrintCard from './QRPrintCard'; // Import the new component
+import QRCode from 'qrcode.react';
 
-const QRGeneratorSimple = () => {
+
+
+export default function QRGeneratorSimple({ maquinas }) {
+  const [selectedMachine, setSelectedMachine] = useState('');
   const [qrCodes, setQrCodes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -103,6 +108,11 @@ const QRGeneratorSimple = () => {
     return fullUrl;
   };
 
+  const generateQRValue = (machineId) => {
+    // Ensure we're using the MongoDB _id
+    return machineId.toString();
+  };
+
   if (loading) {
     return (
       <div className="bg-white rounded-lg shadow-lg p-6">
@@ -127,6 +137,33 @@ const QRGeneratorSimple = () => {
   return (
     <div className="bg-white rounded-lg shadow-lg p-6">
       <h2 className="text-2xl font-bold text-black mb-6 text-center">Generated QR Codes</h2>
+
+      <select
+        value={selectedMachine}
+        onChange={(e) => setSelectedMachine(e.target.value)}
+        className="select-input mb-4"
+      >
+        <option value="">Select a machine</option>
+        {maquinas.map((maquina) => (
+          <option key={maquina._id} value={maquina._id}>
+            {maquina.modelo} - {maquina.serie}
+          </option>
+        ))}
+      </select>
+
+      {selectedMachine && (
+        <div className="qr-display mt-4">
+          <QRCodeCanvas
+            value={generateQRValue(selectedMachine)}
+            size={256}
+            level="H"
+            includeMargin={true}
+          />
+          <p className="mt-2 text-sm text-gray-600">
+            Machine ID: {selectedMachine}
+          </p>
+        </div>
+      )}
 
       {qrCodes.length === 0 ? (
         <p className="text-center text-gray-500">No machines registered to generate QR codes.</p>
@@ -191,5 +228,3 @@ const QRGeneratorSimple = () => {
     </div>
   );
 };
-
-export default QRGeneratorSimple;

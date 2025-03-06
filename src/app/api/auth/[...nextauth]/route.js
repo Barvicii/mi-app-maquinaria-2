@@ -1,57 +1,49 @@
 import NextAuth from 'next-auth';
 import CredentialsProvider from 'next-auth/providers/credentials';
-import { connectDB } from '@/lib/mongodb';
 import bcrypt from 'bcryptjs';
+import { connectDB } from '@/lib/mongodb';
 
 export const authOptions = {
-  debug: true, // Remove in production
   providers: [
     CredentialsProvider({
-      name: 'Credentials',
+      name: 'credentials',
       credentials: {
         email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" }
       },
       async authorize(credentials) {
-        if (!credentials?.email || !credentials?.password) {
-          console.log('Missing credentials');
-          return null;
-        }
-
         try {
+          // Add debug logs
+          console.log('Attempting login for:', credentials.email);
+
           const db = await connectDB();
           const user = await db.collection('users').findOne({ 
-            email: credentials.email.toLowerCase()
+            email: credentials.email 
           });
 
-          console.log('Found user:', user ? 'yes' : 'no');
-
           if (!user) {
-            console.log('No user found');
+            console.log('User not found:', credentials.email);
             return null;
           }
 
-          // For plain text passwords (temporary, not recommended for production)
-          if (credentials.password === user.password) {
-            return {
-              id: user._id.toString(),
-              email: user.email,
-              name: user.name || user.email
-            };
+          // Debug password comparison
+          console.log('Comparing passwords for user:', user.email);
+          const isValid = await bcrypt.compare(
+            credentials.password,
+            user.password
+          );
+
+          if (!isValid) {
+            console.log('Invalid password for user:', user.email);
+            return null;
           }
 
-          // For hashed passwords (recommended for production)
-          // const isValid = await bcrypt.compare(credentials.password, user.password);
-          // if (isValid) {
-          //   return {
-          //     id: user._id.toString(),
-          //     email: user.email,
-          //     name: user.name || user.email
-          //   };
-          // }
-
-          console.log('Invalid password');
-          return null;
+          console.log('Login successful for:', user.email);
+          return {
+            id: user._id.toString(),
+            email: user.email,
+            role: user.role
+          };
         } catch (error) {
           console.error('Auth error:', error);
           return null;
@@ -65,25 +57,24 @@ export const authOptions = {
   },
   pages: {
     signIn: '/login',
-    error: '/login', 
+    error: '/auth/error',
   },
   callbacks: {
     async jwt({ token, user }) {
       if (user) {
         token.id = user.id;
-        token.email = user.email;
+        token.role = user.role;
       }
       return token;
     },
     async session({ session, token }) {
       if (token) {
         session.user.id = token.id;
-        session.user.email = token.email;
+        session.user.role = token.role;
       }
       return session;
     }
-  },
-  secret: process.env.NEXTAUTH_SECRET
+  }
 };
 
 const handler = NextAuth(authOptions);

@@ -4,22 +4,20 @@ import bcrypt from 'bcryptjs';
 const userSchema = new mongoose.Schema({
   email: {
     type: String,
-    required: [true, 'Please provide an email'],
+    required: true,
     unique: true,
     lowercase: true,
   },
   password: {
     type: String,
-    required: [true, 'Please provide a password'],
+    required: true,
     select: false, // Important: This hides the password by default
   },
   name: {
     type: String,
-    required: [true, 'Please provide a name'],
   },
   role: {
     type: String,
-    enum: ['user', 'admin', 'technician'],
     default: 'user',
   },
   isActive: {
@@ -37,7 +35,10 @@ const userSchema = new mongoose.Schema({
   },
   organization: {
     type: String,
-    required: [true, 'Please provide an organization'],
+  },
+  createdAt: {
+    type: Date,
+    default: Date.now,
   }
 }, {
   timestamps: true

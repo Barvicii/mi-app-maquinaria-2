@@ -1,6 +1,7 @@
-"use client";
+'use client';
 import React, { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
+import Dashboard from './Dashboard';
 import NavBar from './NavBar';
 import QRGeneratorSimple from './QRGeneratorSimple';
 import TabPreStart from './TabPreStart';
@@ -14,7 +15,7 @@ import '../styles/tables.css';
 
 const MachinesRegistry = () => {
   const { data: session } = useSession();
-  const [activeTab, setActiveTab] = useState('machines');
+  const [activeTab, setActiveTab] = useState('dashboard');
   const [maquinas, setMaquinas] = useState([]);
   const [prestartRecords, setPrestartRecords] = useState([]);
   const [serviceRecords, setServiceRecords] = useState([]);
@@ -42,7 +43,6 @@ const MachinesRegistry = () => {
           throw new Error('Error fetching machines');
         }
         const data = await response.json();
-        setMaquinas(data);
       } catch (error) {
         console.error('Error loading machines:', error);
       }
@@ -109,6 +109,9 @@ const MachinesRegistry = () => {
             {activeTab === 'alertas' && <TabAlertas />}
             {activeTab === 'qr' && <QRGeneratorSimple maquinas={maquinas} />}
             {activeTab === 'operators' && <TabOperator />}
+            {activeTab === 'dashboard' && (
+              <Dashboard onNavigate={handleTabChange} />
+            )}
           </main>
 
           {/* Footer */}

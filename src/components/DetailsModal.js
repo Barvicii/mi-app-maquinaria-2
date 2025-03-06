@@ -1,5 +1,23 @@
 import React from 'react';
 
+const getStatus = (data) => {
+  if (!data) return 'Unknown';
+
+  const checkItems = [
+    'aceite',
+    'agua',
+    'neumaticos',
+    'nivelCombustible',
+    'lucesYAlarmas',
+    'frenos',
+    'extintores',
+    'cinturonSeguridad'
+  ];
+
+  const allChecksPass = checkItems.every(item => data[item] === true);
+  return allChecksPass ? 'OK' : 'Needs Review';
+};
+
 const DetailsModal = ({ show, onClose, data, type }) => {
     if (!show) return null;
 
@@ -215,14 +233,14 @@ const DetailsModal = ({ show, onClose, data, type }) => {
                             <p><span className="font-medium">Operador:</span> {data.operador}</p>
                             <p><span className="font-medium">Horas:</span> {data.horasMaquina}</p>
                             <p><span className="font-medium">Fecha:</span> {data.fecha ? new Date(data.fecha).toLocaleDateString() : new Date(data.createdAt).toLocaleDateString()}</p>
-                            <p><span className="font-medium">Estado:</span> 
-                                <span className={`ml-2 px-2 py-1 rounded-full text-sm ${
+                            <p><span className="font-medium">Estado:</span> <span className={`ml-2 px-2 py-1 rounded-full text-sm ${
                                     data.estado === 'OK' 
                                         ? 'bg-green-100 text-green-800' 
                                         : 'bg-yellow-100 text-yellow-800'
                                 }`}>
                                     {data.estado}
                                 </span>
+                                
                             </p>
                         </div>
                     </div>
@@ -238,6 +256,18 @@ const DetailsModal = ({ show, onClose, data, type }) => {
                                 </div>
                             ))}
                         </div>
+                    </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4 mb-4">
+                    <div>
+                        <span className="font-semibold">Status:</span>
+                        <span className={`ml-2 px-2 py-1 rounded-full text-sm ${
+                            getStatus(data) === 'OK' 
+                            ? 'bg-green-100 text-green-800' 
+                            : 'bg-red-100 text-red-800'
+                        }`}>
+                            {getStatus(data)}
+                        </span>
                     </div>
                 </div>
                 {data.observaciones && (

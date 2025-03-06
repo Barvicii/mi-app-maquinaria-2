@@ -1,25 +1,17 @@
-import { Geist, Geist_Mono } from "next/font/google";
+import { GeistSans } from 'geist/font';
 import { Inter } from 'next/font/google';
 import { SessionProvider } from 'next-auth/react';
 import { AuthProvider } from '@/components/AuthProvider';
+import Providers from '@/components/Providers';
 import "./globals.css";
 import '../styles/tables.css';
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
+const geist = GeistSans;
 
 const inter = Inter({
   subsets: ['latin'],
-  display: 'swap',  // Add this line
-  preload: true,    // Add this line
-  // Remove variable if you're not using CSS variables
+  display: 'swap',
+  preload: true,
 });
 
 export const metadata = {
@@ -30,10 +22,8 @@ export const metadata = {
 export default function RootLayout({ children }) {
   return (
     <html lang="en">
-      <body className={`${inter.className} antialiased`}>
-        <AuthProvider>
-          {children}
-        </AuthProvider>
+      <body className={inter.className}>
+        <Providers>{children}</Providers>
       </body>
     </html>
   );

@@ -6,22 +6,18 @@ import { ObjectId } from 'mongodb';
 
 export async function GET() {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
     const db = await connectDB();
-    const operators = await db.collection('operators')
-      .find({ userId: session.user.id })
-      .toArray();
-
-    console.log('Operators found:', operators.length); // Debug log
-
+    const operators = await db.collection('operators').find().toArray();
+    
+    console.log('Fetched operators:', operators.length); // Debug log
+    
     return NextResponse.json(operators);
   } catch (error) {
-    console.error('Fetch operators error:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error('GET operators error:', error);
+    return NextResponse.json(
+      { error: 'Failed to fetch operators' },
+      { status: 500 }
+    );
   }
 }
 
