@@ -3,50 +3,47 @@
 import { useState } from 'react';
 import { signIn } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
-import bcrypt from 'bcryptjs';
 
-export default function LoginForm() {
-  const router = useRouter();
+const LoginForm = () => {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const router = useRouter();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError('');
-    setLoading(true);
-
+    
+    if (!email || !password) {
+      setError('Email and password are required');
+      return;
+    }
+    
     try {
-      const formData = new FormData(e.currentTarget);
-      const email = formData.get('email');
-      const password = formData.get('password');
-
-      console.log('Attempting login with:', email);
-
-      // Add this temporarily to your login API route to test password hashing
-      const testPassword = 'yourpassword';
-      const hashedPassword = await bcrypt.hash(testPassword, 10);
-      console.log('Test hash:', hashedPassword);
-      const isMatch = await bcrypt.compare(testPassword, hashedPassword);
-      console.log('Hash test result:', isMatch);
-
+      setError('');
+      setLoading(true);
+      
+      console.log("Attempting login with:", { email });
+      
       const result = await signIn('credentials', {
-        email,
+        redirect: false,
+        email: email.trim(),
         password,
-        redirect: false
       });
-
+      
+      console.log("Login result:", result);
+      
       if (result?.error) {
-        console.error('Login error:', result.error);
         setError('Invalid email or password');
         return;
       }
-
-      router.push('/dashboard');
-      router.refresh();
-
-    } catch (error) {
-      console.error('Login error:', error);
-      setError('An error occurred during login');
+      
+      if (result?.ok) {
+        router.push('/dashboard');
+      }
+    } catch (err) {
+      console.error("Login error:", err);
+      setError('An unexpected error occurred');
     } finally {
       setLoading(false);
     }
@@ -60,17 +57,47 @@ export default function LoginForm() {
         </div>
       )}
       
-      {/* ...existing form fields... */}
+      <div>
+        <label htmlFor="email" className="block text-sm font-medium text-gray-700">
+          Email
+        </label>
+        <input
+          id="email"
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+          placeholder="youremail@example.com"
+          required
+        />
+      </div>
       
-      <button
-        type="submit"
-        disabled={loading}
-        className={`w-full bg-blue-600 text-white py-2 rounded-md hover:bg-blue-700 ${
-          loading ? 'opacity-50 cursor-not-allowed' : ''
-        }`}
-      >
-        {loading ? 'Logging in...' : 'Login'}
-      </button>
+      <div>
+        <label htmlFor="password" className="block text-sm font-medium text-gray-700">
+          Password
+        </label>
+        <input
+          id="password"
+          type="password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+          placeholder="********"
+          required
+        />
+      </div>
+      
+      <div>
+        <button
+          type="submit"
+          disabled={loading}
+          className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:bg-indigo-300"
+        >
+          {loading ? "Logging in..." : "Log in"}
+        </button>
+      </div>
     </form>
   );
-}
+};
+
+export default LoginForm;

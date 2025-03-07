@@ -1,11 +1,7 @@
-'use client';
-
 import React, { useState, useEffect } from 'react';
-import { useSession } from 'next-auth/react';
 import '../styles/machinemodal.css';
 
 const MachineModal = ({ show, type, machine, onClose, onSubmit }) => {
-  const { data: session } = useSession();
   const [activeTab, setActiveTab] = useState('basic');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -201,48 +197,67 @@ const MachineModal = ({ show, type, machine, onClose, onSubmit }) => {
     }
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (loading) return;
+  // Reemplaza la función handleSubmit por esta versión actualizada
+const handleSubmit = async (e) => {
+  e.preventDefault();
+  if (loading) return;
 
-    setLoading(true);
-    setError(null);
+  setLoading(true);
+  setError(null);
 
-    try {
-      const response = await fetch('/api/machines', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          ...formData,
-          userId: session?.user?.id, // Add user ID to machine data
-        }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        // Only show error if it's not a successful creation
-        if (response.status !== 201) {
-          throw new Error(data.error || 'Failed to create machine');
-        }
-      }
-
-      // If we got here, it was successful
-      onSubmit?.(data.machine);
-      onClose();
-
-    } catch (err) {
-      console.error('Error:', err);
-      // Only set error if it's not about existing machine
-      if (!err.message.includes('already exists')) {
-        setError(err.message);
-      }
-    } finally {
-      setLoading(false);
+  try {
+    console.log("Submitting machine data:", { type, machine: formData });
+    
+    // Asegura que machineId esté presente para nuevos registros
+    const dataToSubmit = { ...formData };
+    
+    if (type !== 'edit' && !dataToSubmit.machineId) {
+      dataToSubmit.machineId = `MACHINE_${Date.now()}`;
     }
-  };
+    
+    console.log("Data to submit:", dataToSubmit);
+    
+    // Si es onSubmit (desde TabMachinary)
+    if (typeof onSubmit === 'function') {
+      await onSubmit(dataToSubmit);
+      onClose();
+      return;
+    }
+    
+    // Si no hay onSubmit, hacer la llamada API directamente
+    // Esta parte no es necesaria si siempre usas onSubmit, pero la dejamos por robustez
+    const url = type === 'edit' && machine?._id 
+      ? `/api/machines/${machine._id}` 
+      : '/api/machines';
+      
+    const method = type === 'edit' ? 'PUT' : 'POST';
+    
+    console.log(`Sending ${method} request to ${url}`);
+    
+    const response = await fetch(url, {
+      method,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(dataToSubmit)
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error || 'Failed to save machine');
+    }
+
+    // Si llegamos aquí, fue exitoso
+    onClose();
+
+  } catch (err) {
+    console.error('Error submitting machine:', err);
+    setError(err.message || 'An error occurred while saving the machine');
+  } finally {
+    setLoading(false);
+  }
+};
 
   const renderTabContent = () => {
     switch (activeTab) {

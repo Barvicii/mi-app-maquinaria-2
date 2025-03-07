@@ -1,81 +1,76 @@
-import NextAuth from 'next-auth';
-import CredentialsProvider from 'next-auth/providers/credentials';
-import bcrypt from 'bcryptjs';
-import { connectDB } from '@/lib/mongodb';
+import NextAuth from "next-auth";
+import CredentialsProvider from "next-auth/providers/credentials";
+import { getDatabase } from "@/lib/mongodb";
+import { compare } from "bcrypt";
 
 export const authOptions = {
   providers: [
     CredentialsProvider({
-      name: 'credentials',
+      name: "credentials",
       credentials: {
         email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" }
       },
       async authorize(credentials) {
         try {
-          // Add debug logs
-          console.log('Attempting login for:', credentials.email);
-
-          const db = await connectDB();
-          const user = await db.collection('users').findOne({ 
-            email: credentials.email 
-          });
-
-          if (!user) {
-            console.log('User not found:', credentials.email);
+          if (!credentials?.email || !credentials?.password) {
             return null;
           }
 
-          // Debug password comparison
-          console.log('Comparing passwords for user:', user.email);
-          const isValid = await bcrypt.compare(
+          const db = await getDatabase();
+          const user = await db.collection("users").findOne({ 
+            email: credentials.email 
+          });
+
+          if (!user || !user.password) {
+            return null;
+          }
+
+          const passwordMatch = await compare(
             credentials.password,
             user.password
           );
 
-          if (!isValid) {
-            console.log('Invalid password for user:', user.email);
+          if (!passwordMatch) {
             return null;
           }
 
-          console.log('Login successful for:', user.email);
           return {
             id: user._id.toString(),
+            name: user.name,
             email: user.email,
-            role: user.role
+            image: user.image || null,
           };
         } catch (error) {
-          console.error('Auth error:', error);
+          console.error("Authorization error:", error);
           return null;
         }
       }
     })
   ],
-  session: {
-    strategy: "jwt",
-    maxAge: 30 * 24 * 60 * 60, // 30 days
-  },
   pages: {
     signIn: '/login',
-    error: '/auth/error',
   },
   callbacks: {
     async jwt({ token, user }) {
       if (user) {
         token.id = user.id;
-        token.role = user.role;
       }
       return token;
     },
     async session({ session, token }) {
       if (token) {
         session.user.id = token.id;
-        session.user.role = token.role;
       }
       return session;
     }
-  }
+  },
+  session: {
+    strategy: "jwt",
+  },
+  secret: process.env.NEXTAUTH_SECRET,
 };
 
 const handler = NextAuth(authOptions);
+
 export { handler as GET, handler as POST };

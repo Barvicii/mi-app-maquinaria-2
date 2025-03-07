@@ -82,16 +82,16 @@ const ServiceFormComponent = ({ machineId }) => {
   }, [machineId]);
 
   const [serviceData, setServiceData] = useState({
-    tipoService: '',
-    horasActuales: '',
-    horasProximoService: '',
-    tecnico: '',
+    maquinaId: machineId,
+    tipoService: "",
+    horasActuales: "",
+    horasProximoService: "",
+    tecnico: "",
     trabajosRealizados: [],
-    repuestos: '',
-    observaciones: '',
-    fecha: new Date().toISOString().split('T')[0],
-    costo: '',
-    maquinaId: machineId // Set the machineId here
+    repuestos: "",
+    observaciones: "",
+    fecha: new Date().toISOString().split("T")[0],
+    costo: ""
   });
 
   // Then, fetch the technicians

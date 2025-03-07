@@ -9,12 +9,98 @@ import {
 const Dashboard = ({ onNavigate }) => {
   const { data: session, status } = useSession();
   const [isLoading, setIsLoading] = useState(true);
+  const [machines, setMachines] = useState([]);
+  const [operators, setOperators] = useState([]);
+  const [services, setServices] = useState([]);
+  const [prestarts, setPrestarts] = useState([]);
+  const [error, setError] = useState(null);
+
+  const fetchDashboardData = async () => {
+    try {
+      if (!session) return;
+      
+      setIsLoading(true);
+      setError(null);
+      
+      // Obtener machines (manejo de errores mejorado)
+      let machinesData = [];
+      try {
+        const machinesResponse = await fetch('/api/machines');
+        if (machinesResponse.ok) {
+          machinesData = await machinesResponse.json();
+        } else {
+          console.error('Failed to fetch machines:', await machinesResponse.text());
+        }
+      } catch (err) {
+        console.error('Error fetching machines:', err);
+      }
+      
+      // Obtener operators (manejo de errores mejorado)
+      let operatorsData = [];
+      try {
+        const operatorsResponse = await fetch('/api/operators');
+        if (operatorsResponse.ok) {
+          operatorsData = await operatorsResponse.json();
+        } else {
+          console.error('Failed to fetch operators:', await operatorsResponse.text());
+        }
+      } catch (err) {
+        console.error('Error fetching operators:', err);
+      }
+      
+      // Obtener services (manejo de errores mejorado)
+      let servicesData = [];
+      try {
+        const servicesResponse = await fetch('/api/services');
+        if (servicesResponse.ok) {
+          servicesData = await servicesResponse.json();
+        } else {
+          console.error('Failed to fetch services:', await servicesResponse.text());
+        }
+      } catch (err) {
+        console.error('Error fetching services:', err);
+      }
+      
+      // Obtener prestarts (manejo de errores mejorado)
+      let prestartsData = [];
+      try {
+        const prestartsResponse = await fetch('/api/prestart');
+        if (prestartsResponse.ok) {
+          prestartsData = await prestartsResponse.json();
+        } else {
+          console.error('Failed to fetch prestarts:', await prestartsResponse.text());
+        }
+      } catch (err) {
+        console.error('Error fetching prestarts:', err);
+      }
+      
+      // Actualizar el estado con los datos obtenidos, incluso si algunos fallaron
+      setMachines(machinesData || []);
+      setOperators(operatorsData || []);
+      setServices(servicesData || []);
+      setPrestarts(prestartsData || []);
+      
+      // Calcular estadísticas y otros datos necesarios para el dashboard
+      
+    } catch (error) {
+      console.error('Error fetching dashboard data:', error);
+      setError('Failed to load dashboard data. Please try again later.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (status !== 'loading') {
       setIsLoading(false);
     }
   }, [status]);
+
+  useEffect(() => {
+    if (session) {
+      fetchDashboardData();
+    }
+  }, [session]);
 
   if (isLoading) {
     return (

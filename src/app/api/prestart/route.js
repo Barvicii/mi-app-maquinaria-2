@@ -1,74 +1,65 @@
+import { getServerSession } from "next-auth/next";
+import { authOptions } from "../auth/[...nextauth]/route";
 import { NextResponse } from 'next/server';
-import dbConnect from '@/lib/dbConnect';
-import PreStart from '@/models/PreStart';
+import { connectDB } from '@/lib/mongodb';
 
-export async function GET() {
+export async function GET(request) {
   try {
-    await dbConnect();
-    const prestarts = await PreStart.find({})
-      .sort({ createdAt: -1 });
+    // Verificar autenticación
+    const session = await getServerSession(authOptions);
+    if (!session) {
+      return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+    }
     
+    const userId = session.user.id;
+    console.log('GET prestarts for user:', userId);
+    
+    const db = await connectDB();
+    // Filtrar prestarts por userId
+    const prestarts = await db.collection('prestarts')
+      .find({ userId: userId })
+      .sort({ createdAt: -1 })
+      .toArray();
+      
     return NextResponse.json(prestarts);
   } catch (error) {
-    console.error('GET prestarts error:', error);
-    return NextResponse.json(
-      { error: 'Error loading prestarts' },
-      { status: 500 }
-    );
+    console.error('Error fetching prestarts:', error);
+    return NextResponse.json({ error: error.message || "Failed to fetch prestarts" }, { status: 500 });
   }
 }
 
 export async function POST(request) {
   try {
-    await dbConnect();
-    const data = await request.json();
-    
-    console.log('Received PreStart data:', data);
-    
-    // Check if machineId is present
-    if (!data.maquinaId) {
-      console.warn('No machineId provided for PreStart check');
+    // Verificar autenticación
+    const session = await getServerSession(authOptions);
+    if (!session) {
+      return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
     }
     
-    // Calculate status based on checks
-    const allChecks = [
-      'aceite', 'agua', 'neumaticos', 'nivelCombustible',
-      'lucesYAlarmas', 'frenos', 'extintores', 'cinturonSeguridad'
-    ];
+    const userId = session.user.id;
+    console.log('Creating prestart for user:', userId);
     
-    const hasFailedChecks = allChecks.some(check => !data[check]);
-    data.estado = hasFailedChecks ? 'Requiere atención' : 'OK';
-
-    // Handle both direct submission and nested submission formats
-    let prestartData;
-    if (data.datos) {
-      // Format from ServiceForm (nested data)
-      prestartData = {
-        ...data.datos,
-        machineId: data.maquinaId, // Ensure machineId is attached
-        fecha: data.fecha || new Date()
-      };
-    } else {
-      // Direct submission from PreStartCheckForm
-      prestartData = {
-        ...data,
-        machineId: data.maquinaId, // Ensure consistency in field name
-        fecha: data.fecha || new Date()
-      };
+    let data;
+    try {
+      data = await request.json();
+    } catch (error) {
+      return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
     }
-
-    console.log('Saving PreStart data:', prestartData);
     
-    const prestart = new PreStart(prestartData);
-    const savedPrestart = await prestart.save();
-
-    console.log('PreStart saved with ID:', savedPrestart._id);
-    return NextResponse.json(savedPrestart, { status: 201 });
+    // Añadir userId al documento
+    data.userId = userId;
+    data.createdAt = new Date();
+    
+    const db = await connectDB();
+    const result = await db.collection('prestarts').insertOne(data);
+    
+    const newPrestart = await db.collection('prestarts').findOne({
+      _id: result.insertedId
+    });
+    
+    return NextResponse.json(newPrestart);
   } catch (error) {
-    console.error('POST prestart error:', error);
-    return NextResponse.json(
-      { error: 'Error creating prestart', message: error.message },
-      { status: 500 }
-    );
+    console.error('Error creating prestart:', error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

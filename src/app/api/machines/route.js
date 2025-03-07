@@ -1,122 +1,92 @@
+import { getServerSession } from "next-auth/next";
+import { authOptions } from "../auth/[...nextauth]/route";
 import { NextResponse } from 'next/server';
-import { connectDB } from '@/lib/mongodb';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '../auth/[...nextauth]/route';
-import { ObjectId } from 'mongodb';
+import { connectDB } from '../../../utils/db';
+
+export async function GET(request) {
+  try {
+    // Verificar autenticación
+    const session = await getServerSession(authOptions);
+    if (!session) {
+      return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+    }
+    
+    const userId = session.user.id;
+    console.log('GET machines for user:', userId);
+    
+    const db = await connectDB();
+    // Filtrar máquinas por userId
+    const machines = await db.collection('machines')
+      .find({ userId: userId })
+      .sort({ createdAt: -1 })
+      .toArray();
+      
+    return NextResponse.json(machines);
+  } catch (error) {
+    console.error('Error fetching machines:', error);
+    return NextResponse.json({ error: error.message || "Failed to fetch machines" }, { status: 500 });
+  }
+}
 
 export async function POST(request) {
   try {
+    // Verificar autenticación
     const session = await getServerSession(authOptions);
     if (!session) {
       return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
     }
-
-    const body = await request.json();
-    console.log('Received machine data:', body); // Debug log
-
-    // Validate required fields
-    if (!body.customId || !body.model || !body.marca) {
-      return NextResponse.json(
-        { error: "Missing required fields" },
-        { status: 400 }
-      );
+    
+    const userId = session.user.id;
+    console.log('Creating machine for user:', userId);
+    
+    let data;
+    try {
+      data = await request.json();
+    } catch (error) {
+      return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
     }
+    
+    // Añadir userId al documento
+    data.userId = userId;
+    
+    // Validar campos requeridos
+    if (!data.model || !data.brand) {
+      return NextResponse.json({ 
+        error: "Model and brand are required" 
+      }, { status: 400 });
+    }
+
+    // Generar machineId si no existe
+    if (!data.machineId) {
+      data.machineId = `MACHINE_${Date.now()}`;
+    }
+
+    // Añadir fechas
+    const now = new Date();
+    data.createdAt = now;
+    data.updatedAt = now;
 
     const db = await connectDB();
     
-    // Check for duplicate customId
-    const existingMachine = await db.collection('machines').findOne({ 
-      customId: body.customId,
-      userId: session.user.id
-    });
-
-    if (existingMachine) {
-      return NextResponse.json(
-        { error: "Machine ID already exists" },
-        { status: 400 }
-      );
-    }
-
-    const newMachine = {
-      ...body,
-      userId: session.user.id,
-      createdAt: new Date()
-    };
-
-    console.log('Creating new machine:', newMachine); // Debug log
-
-    const result = await db.collection('machines').insertOne(newMachine);
+    // Insertar en la base de datos
+    const result = await db.collection('machines').insertOne(data);
     
-    // Return the created machine
-    return NextResponse.json({
-      _id: result.insertedId,
-      ...newMachine
+    console.log('Insert result:', result);
+    
+    if (!result.insertedId) {
+      return NextResponse.json({ 
+        error: "Failed to create machine" 
+      }, { status: 500 });
+    }
+    
+    // Obtener la máquina recién creada
+    const newMachine = await db.collection('machines').findOne({
+      _id: result.insertedId
     });
-
+    
+    return NextResponse.json(newMachine);
   } catch (error) {
-    console.error('POST machines error:', error);
-    return NextResponse.json(
-      { error: "Error creating machine" },
-      { status: 500 }
-    );
-  }
-}
-
-export async function GET() {
-  try {
-    const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
-    }
-
-    const db = await connectDB();
-    const machines = await db.collection('machines')
-      .find({ userId: session.user.id })
-      .toArray();
-
-    return NextResponse.json(machines);
-
-  } catch (error) {
-    console.error('GET machines error:', error);
-    return NextResponse.json(
-      { error: "Error fetching machines" },
-      { status: 500 }
-    );
-  }
-}
-
-export async function DELETE(request) {
-  try {
-    if (!session) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const data = await request.json();
-    const { _id, ...updateData } = data;
-
-    if (!_id) {
-      return NextResponse.json({ error: 'Machine ID is required' }, { status: 400 });
-    }
-
-    const db = await connectDB();
-    console.log('Updating machine:', _id, updateData);
-
-    const result = await db.collection('machines').updateOne(
-      { 
-        _id: new ObjectId(_id),
-        userId: session.user.id 
-      },
-      { $set: updateData }
-    );
-
-    if (result.matchedCount === 0) {
-      return NextResponse.json({ error: 'Machine not found' }, { status: 404 });
-    }
-
-    console.log('Update result:', result);
-    return NextResponse.json({ ...data, message: 'Machine updated successfully' });
-  } catch (error) {
-    console.error('Update machine error:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error('Error creating machine:', error);
+    return NextResponse.json({ error: error.message || "Failed to create machine" }, { status: 500 });
   }
 }

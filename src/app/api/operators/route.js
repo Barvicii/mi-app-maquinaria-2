@@ -1,52 +1,66 @@
 import { NextResponse } from 'next/server';
 import { connectDB } from '@/lib/mongodb';
-import { getServerSession } from 'next-auth';
+import { getServerSession } from 'next-auth/next';
 import { authOptions } from '../auth/[...nextauth]/route';
 import { ObjectId } from 'mongodb';
 
-export async function GET() {
+export async function GET(request) {
   try {
+    // Verificar autenticación
+    const session = await getServerSession(authOptions);
+    if (!session) {
+      return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+    }
+    
+    const userId = session.user.id;
+    console.log('GET operators for user:', userId);
+    
     const db = await connectDB();
-    const operators = await db.collection('operators').find().toArray();
-    
-    console.log('Fetched operators:', operators.length); // Debug log
-    
+    // Filtrar operadores por userId
+    const operators = await db.collection('operators')
+      .find({ userId: userId })
+      .sort({ createdAt: -1 })
+      .toArray();
+      
     return NextResponse.json(operators);
   } catch (error) {
-    console.error('GET operators error:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch operators' },
-      { status: 500 }
-    );
+    console.error('Error fetching operators:', error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
 
 export async function POST(request) {
   try {
+    // Verificar autenticación
     const session = await getServerSession(authOptions);
     if (!session) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
     }
-
-    const db = await connectDB();
-    const data = await request.json();
     
-    const newOperator = {
-      ...data,
-      userId: session.user.id,
-      createdAt: new Date()
-    };
-
-    const result = await db.collection('operators').insertOne(newOperator);
-
-    console.log('Operator created:', result); // Debug log
-
-    return NextResponse.json({
-      _id: result.insertedId,
-      ...newOperator
+    const userId = session.user.id;
+    console.log('Creating operator for user:', userId);
+    
+    let data;
+    try {
+      data = await request.json();
+    } catch (error) {
+      return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
+    }
+    
+    // Añadir userId al documento
+    data.userId = userId;
+    data.createdAt = new Date();
+    
+    const db = await connectDB();
+    const result = await db.collection('operators').insertOne(data);
+    
+    const newOperator = await db.collection('operators').findOne({
+      _id: result.insertedId
     });
+    
+    return NextResponse.json(newOperator);
   } catch (error) {
-    console.error('Create operator error:', error);
+    console.error('Error creating operator:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

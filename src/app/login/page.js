@@ -1,135 +1,113 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { signIn, useSession } from 'next-auth/react';
-import Link from 'next/link';
+import { useState } from "react";
+import { signIn } from "next-auth/react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
 
 export default function LoginPage() {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
-  const { data: session, status } = useSession();
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-
-  // Redirect if already authenticated
-  useEffect(() => {
-    if (status === 'authenticated') {
-      router.push('/tabmachinary'); // Redirect to tabmachinary page
-    }
-  }, [status, router]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setLoading(true);
-    setError('');
-
-    const formData = new FormData(e.currentTarget);
-    const email = formData.get('email');
-    const password = formData.get('password');
-
-    console.log('Attempting login:', { email, hasPassword: !!password });
+    setIsLoading(true);
+    setError("");
 
     try {
-      const result = await signIn('credentials', {
+      const result = await signIn("credentials", {
         email,
         password,
         redirect: false,
       });
 
-      console.log('Login result:', result);
-
       if (result?.error) {
-        setError('Invalid email or password');
-      } else if (result?.ok) {
-        router.push('/dashboard');
-        router.refresh();
+        setError("Invalid email or password");
+        setIsLoading(false);
+        return;
       }
+
+      // Redirigir a machinesregistry
+      router.push('/machinesregistry');
+      
     } catch (error) {
-      console.error('Login error:', error);
-      setError('An error occurred during login');
-    } finally {
-      setLoading(false);
+      console.error("Login error:", error);
+      setError("An unexpected error occurred. Please try again.");
+      setIsLoading(false);
     }
   };
 
-  // If still checking authentication status, show loading
-  if (status === 'loading') {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-100">
-        <div className="bg-white p-8 rounded-lg shadow-lg">
-          <div className="flex justify-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // Don't render the login form if already authenticated
-  if (status === 'authenticated') {
-    return null;
-  }
-
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full space-y-8">
-        {/* Logo */}
-        <div className="flex justify-center mb-6">
-          <img src="/Imagen/logoo.png" alt="Logo" className="h-20 w-auto" />
+    <div className="min-h-screen flex items-center justify-center bg-gray-100">
+      <div className="max-w-md w-full bg-white rounded-lg shadow-md p-8">
+        <div className="text-center mb-8">
+          <h1 className="text-3xl font-bold text-gray-800">Login</h1>
+          <p className="text-gray-600 mt-2">Sign in to your account</p>
         </div>
-        
-        {/* Title */}
-        <h2 className="text-2xl font-bold text-center text-gray-900 mb-6">Login</h2>
-        
-        {/* Error message */}
+
         {error && (
-          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
-            <span className="block sm:inline">{error}</span>
+          <div className="bg-red-50 text-red-600 p-3 rounded-md mb-4">
+            {error}
           </div>
         )}
-        
-        {/* Form */}
+
         <form onSubmit={handleSubmit} className="space-y-6">
-          <div className="mb-4">
-            <label className="block text-gray-700">Email</label>
-            <input 
-              type="email" 
-              name="email" 
-              className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" 
-              placeholder="Enter your email"
+          <div>
+            <label htmlFor="email" className="block text-sm font-medium text-gray-700">
+              Email
+            </label>
+            <input
+              id="email"
+              name="email"
+              type="email"
+              autoComplete="email"
               required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
             />
           </div>
-          
-          <div className="mb-4">
-            <label className="block text-gray-700">Password</label>
-            <input 
-              type="password" 
+
+          <div>
+            <label htmlFor="password" className="block text-sm font-medium text-gray-700">
+              Password
+            </label>
+            <input
+              id="password"
               name="password"
-              className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" 
-              placeholder="Enter your password"
+              type="password"
+              autoComplete="current-password"
               required
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
             />
           </div>
-          
-          <button 
-            type="submit" 
-            className="w-full bg-indigo-600 text-white py-2 rounded-lg hover:bg-indigo-700 transition"
-            disabled={loading}
-          >
-            {loading ? 'Logging in...' : 'Login'}
-          </button>
-        </form>
-        
-        {/* Register link */}
-        <div className="text-center mt-4">
-          <p className="text-gray-600">
-            Don't have an account?{' '}
-            <Link 
-              href="/register" 
-              className="text-indigo-600 hover:underline"
+
+          <div>
+            <button
+              type="submit"
+              disabled={isLoading}
+              className={`w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 ${
+                isLoading ? "opacity-70 cursor-not-allowed" : ""
+              }`}
             >
-              Register here
+              {isLoading ? "Signing in..." : "Sign in"}
+            </button>
+          </div>
+        </form>
+
+        <div className="mt-6 text-center">
+          <p className="text-sm text-gray-600">
+            Don&apos;t have an account?{" "}
+            <Link
+              href="/register"
+              className="font-medium text-indigo-600 hover:text-indigo-500"
+            >
+              Register
             </Link>
           </p>
         </div>

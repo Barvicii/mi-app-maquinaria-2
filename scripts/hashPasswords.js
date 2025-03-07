@@ -1,5 +1,5 @@
 import bcrypt from 'bcryptjs';
-import dbConnect from '../src/lib/dbConnect';
+import dbConnect from '../src/lib/43432';
 import User from '../src/models/User';
 
 async function hashPasswords() {

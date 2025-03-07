@@ -38,20 +38,18 @@ const TabServices = () => {
 
   const fetchServices = async () => {
     try {
-      setLoading(true);
-      setError(null);
-      setIsRefreshing(true);
-
-      if (!session) {
-        throw new Error('Not authenticated');
-      }
+      if (!session) return; // No hacer fetch si no hay sesión
       
-      console.log('Fetching services...');
+      setLoading(true);
+      setIsRefreshing(true);
+      setError(null);
+      
+      console.log('Fetching services for user:', session.user.id);
       
       const response = await fetch('/api/services', {
-        cache: 'no-store',
+        method: 'GET',
         headers: {
-          'Cache-Control': 'no-cache'
+          'Cache-Control': 'no-store'
         }
       });
       
