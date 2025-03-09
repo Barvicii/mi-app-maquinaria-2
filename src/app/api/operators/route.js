@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { connectDB } from '@/lib/mongodb';
+import { getDatabase } from '@/lib/mongodb';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '../auth/[...nextauth]/route';
 import { ObjectId } from 'mongodb';
@@ -15,7 +15,7 @@ export async function GET(request) {
     const userId = session.user.id;
     console.log('GET operators for user:', userId);
     
-    const db = await connectDB();
+    const db = await getDatabase();
     // Filtrar operadores por userId
     const operators = await db.collection('operators')
       .find({ userId: userId })
@@ -51,7 +51,7 @@ export async function POST(request) {
     data.userId = userId;
     data.createdAt = new Date();
     
-    const db = await connectDB();
+    const db = await getDatabase();
     const result = await db.collection('operators').insertOne(data);
     
     const newOperator = await db.collection('operators').findOne({
@@ -76,7 +76,7 @@ export async function DELETE(request) {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
 
-    const db = await connectDB();
+    const db = await getDatabase();
     const result = await db.collection('operators').deleteOne({
       _id: new ObjectId(id),
       userId: session.user.id

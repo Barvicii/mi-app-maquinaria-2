@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { connectDB } from '@/lib/mongodb';
+import { getDatabase } from '@/lib/mongodb';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '../auth/[...nextauth]/route';
 import { ObjectId } from 'mongodb';
@@ -15,7 +15,7 @@ export async function GET(request) {
     const userId = session.user.id;
     console.log('GET services for user:', userId);
     
-    const db = await connectDB();
+    const db = await getDatabase();
     // Filtrar services por userId
     const services = await db.collection('services')
       .find({ userId: userId })
@@ -32,4 +32,5 @@ export async function GET(request) {
 // Implementación de POST similar a prestarts
 export async function POST(request) {
   // Código similar al POST de prestarts
+  const db = await getDatabase();
 }

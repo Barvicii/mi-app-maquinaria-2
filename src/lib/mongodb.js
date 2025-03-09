@@ -1,39 +1,31 @@
-import { MongoClient } from "mongodb";
+import { MongoClient } from 'mongodb';
 
 const uri = process.env.MONGODB_URI;
-const dbName = 'orchardservice';
-
-if (!uri) {
-  throw new Error("Please add MongoDB URI to .env.local");
-}
+const options = {};
 
 let client;
 let clientPromise;
 
-if (process.env.NODE_ENV === "development") {
-  // In development mode, use a global variable to preserve the value
+if (!uri) {
+  throw new Error('Please add your Mongo URI to .env.local');
+}
+
+if (process.env.NODE_ENV === 'development') {
+  // En desarrollo, usa una variable global para preservar la conexión
   if (!global._mongoClientPromise) {
-    client = new MongoClient(uri, {});
+    client = new MongoClient(uri, options);
     global._mongoClientPromise = client.connect();
   }
   clientPromise = global._mongoClientPromise;
 } else {
-  // In production mode, create a new client
-  client = new MongoClient(uri, {});
+  // En producción, crear un nuevo cliente
+  client = new MongoClient(uri, options);
   clientPromise = client.connect();
 }
 
-// Modifica esta función para que devuelva el cliente
 export async function connectDB() {
   const client = await clientPromise;
-  // No devolver client.db(dbName) aquí
-  return client;
-}
-
-// Función adicional para obtener directamente la base de datos
-export async function getDatabase() {
-  const client = await clientPromise;
-  return client.db(dbName);
+  return client.db();
 }
 
 export default clientPromise;

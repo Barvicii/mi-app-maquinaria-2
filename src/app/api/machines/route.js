@@ -1,7 +1,7 @@
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "../auth/[...nextauth]/route";
 import { NextResponse } from 'next/server';
-import { connectDB } from '../../../utils/db';
+import { getDatabase } from "@/lib/mongodb";
 
 export async function GET(request) {
   try {
@@ -14,7 +14,7 @@ export async function GET(request) {
     const userId = session.user.id;
     console.log('GET machines for user:', userId);
     
-    const db = await connectDB();
+    const db = await getDatabase();
     // Filtrar máquinas por userId
     const machines = await db.collection('machines')
       .find({ userId: userId })
@@ -66,7 +66,7 @@ export async function POST(request) {
     data.createdAt = now;
     data.updatedAt = now;
 
-    const db = await connectDB();
+    const db = await getDatabase();
     
     // Insertar en la base de datos
     const result = await db.collection('machines').insertOne(data);

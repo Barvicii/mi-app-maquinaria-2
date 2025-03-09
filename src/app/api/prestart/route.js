@@ -1,7 +1,7 @@
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "../auth/[...nextauth]/route";
 import { NextResponse } from 'next/server';
-import { connectDB } from '@/lib/mongodb';
+import { getDatabase } from "@/lib/mongodb";
 
 export async function GET(request) {
   try {
@@ -14,7 +14,7 @@ export async function GET(request) {
     const userId = session.user.id;
     console.log('GET prestarts for user:', userId);
     
-    const db = await connectDB();
+    const db = await getDatabase();
     // Filtrar prestarts por userId
     const prestarts = await db.collection('prestarts')
       .find({ userId: userId })
@@ -50,7 +50,7 @@ export async function POST(request) {
     data.userId = userId;
     data.createdAt = new Date();
     
-    const db = await connectDB();
+    const db = await getDatabase();
     const result = await db.collection('prestarts').insertOne(data);
     
     const newPrestart = await db.collection('prestarts').findOne({

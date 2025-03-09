@@ -1,7 +1,13 @@
 import NextAuth from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
-import { getDatabase } from "@/lib/mongodb";
+import { MongoClient } from "mongodb"; // Importa MongoClient directamente
 import { compare } from "bcrypt";
+
+// Obtén la URI de MongoDB desde las variables de entorno
+const uri = process.env.MONGODB_URI;
+if (!uri) {
+  throw new Error("Please add your Mongo URI to .env.local");
+}
 
 export const authOptions = {
   providers: [
@@ -17,10 +23,19 @@ export const authOptions = {
             return null;
           }
 
-          const db = await getDatabase();
-          const user = await db.collection("users").findOne({ 
-            email: credentials.email 
+          // Crea una conexión directa a MongoDB para este request
+          const client = new MongoClient(uri);
+          await client.connect();
+          
+          // Accede a la base de datos
+          const db = client.db();
+          
+          const user = await db.collection("users").findOne({
+            email: credentials.email
           });
+
+          // Cierra la conexión después de usarla
+          await client.close();
 
           if (!user || !user.password) {
             return null;
@@ -37,9 +52,9 @@ export const authOptions = {
 
           return {
             id: user._id.toString(),
-            name: user.name,
             email: user.email,
-            image: user.image || null,
+            name: user.name,
+            randomKey: "Hey cool"
           };
         } catch (error) {
           console.error("Authorization error:", error);
@@ -48,27 +63,13 @@ export const authOptions = {
       }
     })
   ],
-  pages: {
-    signIn: '/login',
-  },
-  callbacks: {
-    async jwt({ token, user }) {
-      if (user) {
-        token.id = user.id;
-      }
-      return token;
-    },
-    async session({ session, token }) {
-      if (token) {
-        session.user.id = token.id;
-      }
-      return session;
-    }
-  },
   session: {
-    strategy: "jwt",
+    strategy: "jwt"
   },
   secret: process.env.NEXTAUTH_SECRET,
+  pages: {
+    signIn: "/login"
+  }
 };
 
 const handler = NextAuth(authOptions);

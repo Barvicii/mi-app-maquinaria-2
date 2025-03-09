@@ -2,10 +2,11 @@ import { getServerSession } from "next-auth/next";
 import { authOptions } from "../../auth/[...nextauth]/route";
 import { ObjectId } from 'mongodb';
 import { NextResponse } from 'next/server';
-import { connectDB } from '@/lib/mongodb';
+import { getDatabase } from '@/lib/mongodb';
 
 export async function GET(request, { params }) {
   try {
+    // Asegúrate de await los params
     const { id } = params;
     
     // Validar que el ID sea un ObjectId válido
@@ -14,7 +15,7 @@ export async function GET(request, { params }) {
     }
     
     const client = await connectDB();
-    const db = client.db();
+    const db = await getDatabase();
     
     // Solo devolver campos necesarios para acceso público
     const machine = await db.collection('machines').findOne(
@@ -57,7 +58,7 @@ export async function PUT(request, { params }) {
       return NextResponse.json({ error: "Invalid machine ID" }, { status: 400 });
     }
 
-    const db = await connectDB();
+    const db = await getDatabase();
     
     // Verificar que la máquina existe y pertenece al usuario
     const existingMachine = await db.collection('machines').findOne({
@@ -115,7 +116,7 @@ export async function DELETE(request, { params }) {
       return NextResponse.json({ error: "Invalid machine ID" }, { status: 400 });
     }
     
-    const db = await connectDB();
+    const db = await getDatabase();
     
     // Eliminar solo si pertenece al usuario
     const result = await db.collection('machines').deleteOne({
