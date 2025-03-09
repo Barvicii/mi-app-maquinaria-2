@@ -1,7 +1,7 @@
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "../auth/[...nextauth]/route";
 import { NextResponse } from 'next/server';
-import { getDatabase } from "@/lib/mongodb";
+import { connectDB } from '@/lib/mongodb'; // Cambia aquí a connectDB
 
 export async function GET(request) {
   try {
@@ -14,7 +14,10 @@ export async function GET(request) {
     const userId = session.user.id;
     console.log('GET machines for user:', userId);
     
-    const db = await getDatabase();
+    // Cambia aquí para usar connectDB y luego .db()
+    const client = await connectDB();
+    const db = client.db();
+    
     // Filtrar máquinas por userId
     const machines = await db.collection('machines')
       .find({ userId: userId })
@@ -66,7 +69,9 @@ export async function POST(request) {
     data.createdAt = now;
     data.updatedAt = now;
 
-    const db = await getDatabase();
+    // Cambia aquí para usar connectDB y luego .db()
+    const client = await connectDB();
+    const db = client.db();
     
     // Insertar en la base de datos
     const result = await db.collection('machines').insertOne(data);
