@@ -5,6 +5,7 @@ const MachineModal = ({ show, type, machine, onClose, onSubmit }) => {
   const [activeTab, setActiveTab] = useState('basic');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [prestartTemplates, setPrestartTemplates] = useState([]);
   const [formData, setFormData] = useState({
     model: '',
     brand: '',
@@ -48,7 +49,8 @@ const MachineModal = ({ show, type, machine, onClose, onSubmit }) => {
         pressure: '',
         brand: ''
       }
-    }
+    },
+    prestartTemplateId: ''
   });
 
   // Initialize form with machine data when editing
@@ -97,7 +99,8 @@ const MachineModal = ({ show, type, machine, onClose, onSubmit }) => {
             pressure: machine.tires?.rear?.pressure || (machine.neumaticos?.traseros?.presion || ''),
             brand: machine.tires?.rear?.brand || (machine.neumaticos?.traseros?.marca || '')
           }
-        }
+        },
+        prestartTemplateId: machine.prestartTemplateId || ''
       });
     } else {
       // Reset form for new machine
@@ -144,7 +147,8 @@ const MachineModal = ({ show, type, machine, onClose, onSubmit }) => {
             pressure: '',
             brand: ''
           }
-        }
+        },
+        prestartTemplateId: ''
       });
     }
     // Reset to first tab when opening modal
@@ -158,6 +162,22 @@ const MachineModal = ({ show, type, machine, onClose, onSubmit }) => {
     return () => {
       localStorage.removeItem('machineDraft');
     };
+  }, []);
+
+  useEffect(() => {
+    const fetchTemplates = async () => {
+      try {
+        const response = await fetch('/api/prestart/templates');
+        if (response.ok) {
+          const data = await response.json();
+          setPrestartTemplates(data);
+        }
+      } catch (error) {
+        console.error('Error fetching prestart templates:', error);
+      }
+    };
+    
+    fetchTemplates();
   }, []);
 
   const handleChange = (e) => {
@@ -197,67 +217,66 @@ const MachineModal = ({ show, type, machine, onClose, onSubmit }) => {
     }
   };
 
-  // Reemplaza la función handleSubmit por esta versión actualizada
-const handleSubmit = async (e) => {
-  e.preventDefault();
-  if (loading) return;
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (loading) return;
 
-  setLoading(true);
-  setError(null);
+    setLoading(true);
+    setError(null);
 
-  try {
-    console.log("Submitting machine data:", { type, machine: formData });
-    
-    // Asegura que machineId esté presente para nuevos registros
-    const dataToSubmit = { ...formData };
-    
-    if (type !== 'edit' && !dataToSubmit.machineId) {
-      dataToSubmit.machineId = `MACHINE_${Date.now()}`;
-    }
-    
-    console.log("Data to submit:", dataToSubmit);
-    
-    // Si es onSubmit (desde TabMachinary)
-    if (typeof onSubmit === 'function') {
-      await onSubmit(dataToSubmit);
-      onClose();
-      return;
-    }
-    
-    // Si no hay onSubmit, hacer la llamada API directamente
-    // Esta parte no es necesaria si siempre usas onSubmit, pero la dejamos por robustez
-    const url = type === 'edit' && machine?._id 
-      ? `/api/machines/${machine._id}` 
-      : '/api/machines';
+    try {
+      console.log("Submitting machine data:", { type, machine: formData });
       
-    const method = type === 'edit' ? 'PUT' : 'POST';
-    
-    console.log(`Sending ${method} request to ${url}`);
-    
-    const response = await fetch(url, {
-      method,
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(dataToSubmit)
-    });
+      // Asegura que machineId esté presente para nuevos registros
+      const dataToSubmit = { ...formData };
+      
+      if (type !== 'edit' && !dataToSubmit.machineId) {
+        dataToSubmit.machineId = `MACHINE_${Date.now()}`;
+      }
+      
+      console.log("Data to submit:", dataToSubmit);
+      
+      // Si es onSubmit (desde TabMachinary)
+      if (typeof onSubmit === 'function') {
+        await onSubmit(dataToSubmit);
+        onClose();
+        return;
+      }
+      
+      // Si no hay onSubmit, hacer la llamada API directamente
+      // Esta parte no es necesaria si siempre usas onSubmit, pero la dejamos por robustez
+      const url = type === 'edit' && machine?._id 
+        ? `/api/machines/${machine._id}` 
+        : '/api/machines';
+        
+      const method = type === 'edit' ? 'PUT' : 'POST';
+      
+      console.log(`Sending ${method} request to ${url}`);
+      
+      const response = await fetch(url, {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(dataToSubmit)
+      });
 
-    const data = await response.json();
+      const data = await response.json();
 
-    if (!response.ok) {
-      throw new Error(data.error || 'Failed to save machine');
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to save machine');
+      }
+
+      // Si llegamos aquí, fue exitoso
+      onClose();
+
+    } catch (err) {
+      console.error('Error submitting machine:', err);
+      setError(err.message || 'An error occurred while saving the machine');
+    } finally {
+      setLoading(false);
     }
-
-    // Si llegamos aquí, fue exitoso
-    onClose();
-
-  } catch (err) {
-    console.error('Error submitting machine:', err);
-    setError(err.message || 'An error occurred while saving the machine');
-  } finally {
-    setLoading(false);
-  }
-};
+  };
 
   const renderTabContent = () => {
     switch (activeTab) {
@@ -361,6 +380,27 @@ const handleSubmit = async (e) => {
                   onChange={handleChange}
                   className="w-full p-2 border rounded-md text-black"
                 />
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="prestartTemplateId" className="form-label">PreStart Template</label>
+                <select
+                  id="prestartTemplateId"
+                  name="prestartTemplateId"
+                  value={formData.prestartTemplateId || ''}
+                  onChange={handleChange}
+                  className="form-select"
+                >
+                  <option value="">Default Template</option>
+                  {prestartTemplates.map(template => (
+                    <option key={template._id} value={template._id}>
+                      {template.name}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-sm text-gray-500 mt-1">
+                  Select which prestart check template to use for this machine
+                </p>
               </div>
             </div>
           </div>

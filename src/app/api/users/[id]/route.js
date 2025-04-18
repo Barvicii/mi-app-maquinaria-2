@@ -18,7 +18,7 @@ export async function GET(request, { params }) {
     }
     
     await dbConnect();
-    const { id } = params;
+    const { id } = await params;
     
     // Users can only view themselves or admins can view any user in their org
     if (session.user.id !== id && session.user.role !== 'admin') {

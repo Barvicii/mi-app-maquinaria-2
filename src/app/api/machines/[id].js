@@ -6,7 +6,7 @@ import Machine from '@/models/Machine';
 export async function DELETE(request, { params }) {
     try {
         await dbConnect();
-        const { id } = params;
+        const { id } = await params;
 
         if (!id) {
             return NextResponse.json({ error: 'ID no proporcionado' }, { status: 400 });

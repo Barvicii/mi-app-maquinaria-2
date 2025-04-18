@@ -1,79 +1,67 @@
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { toast } from 'react-toastify';
 import ServiceForm from '@/components/ServiceForm';
 
-const ServicePageClient = ({ id }) => {
+export default function ServicePageClient({ id }) {
   const router = useRouter();
   const [machine, setMachine] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  const fetchMaquina = useCallback(async () => {
-    if (!id) {
-      console.error('No machine ID provided');
-      setError('No machine ID provided');
-      setLoading(false);
-      return;
-    }
-
-    try {
-      setLoading(true);
-      setError(null);
-
-      console.log('Fetching machine with ID:', id);
-      const response = await fetch(`/api/machines/${id}`);
-      const data = await response.json();
-
-      // Add console log to check the machine data
-      console.log('Machine data from API:', data);
-
-      if (!response.ok) {
-        throw new Error(data.message || 'Error loading machine');
+  useEffect(() => {
+    const fetchMachine = async () => {
+      try {
+        setLoading(true);
+        // Usar la API que permite acceso público
+        const response = await fetch(`/api/machines/${id}?public=true`);
+        
+        if (!response.ok) {
+          throw new Error(`Error fetching machine: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        console.log("Machine data:", data);
+        setMachine(data);
+      } catch (err) {
+        console.error('Error loading machine:', err);
+        setError(err.message);
+      } finally {
+        setLoading(false);
       }
+    };
 
-      console.log('Machine data received:', data);
-      setMachine(data);
-
-    } catch (error) {
-      console.error('Error fetching machine:', error);
-      setError(error.message);
-      toast.error(error.message);
-    } finally {
-      setLoading(false);
+    if (id) {
+      fetchMachine();
     }
   }, [id]);
 
-  useEffect(() => {
-    fetchMaquina();
-  }, [fetchMaquina]);
-
   if (loading) {
     return (
-      <div className="flex justify-center items-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Cargando información de la máquina...</p>
+        </div>
       </div>
     );
   }
 
-  if (error) {
+  if (error || !machine) {
     return (
-      <div className="text-center py-4">
-        <div className="text-red-600">{error}</div>
-        <div className="text-sm text-gray-500 mt-2">Machine ID: {id}</div>
+      <div className="p-4 max-w-md mx-auto bg-red-50 rounded-lg shadow-md">
+        <h2 className="text-lg font-bold text-red-700 mb-2">Error al cargar datos</h2>
+        <p className="text-red-600">{error || 'No se encontró la máquina'}</p>
+        <button 
+          onClick={() => router.push('/')}
+          className="mt-4 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+        >
+          Volver al inicio
+        </button>
       </div>
     );
   }
 
-  return machine ? (
-    <ServiceForm machineId={id} machine={machine} />
-  ) : (
-    <div className="text-center py-4 text-gray-600">
-      No machine data available
-    </div>
-  );
-};
-
-export default ServicePageClient;
+  return <ServiceForm machineId={id} machine={machine} />;
+}

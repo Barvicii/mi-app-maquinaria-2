@@ -1,12 +1,19 @@
 import NextAuth from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
-import { MongoClient } from "mongodb"; // Importa MongoClient directamente
-import { compare } from "bcrypt";
+import { connectDB } from "@/lib/mongodb";
+import bcrypt from "bcryptjs";
+import { NextResponse } from 'next/server';
 
-// Obtén la URI de MongoDB desde las variables de entorno
-const uri = process.env.MONGODB_URI;
-if (!uri) {
-  throw new Error("Please add your Mongo URI to .env.local");
+// Leer la dirección base de la aplicación del entorno
+const appUrl = process.env.NEXTAUTH_URL || `http://${process.env.VERCEL_URL}` || 'http://localhost:3000';
+
+export async function middleware(request) {
+  // Verificar que estamos recibiendo la solicitud correctamente
+  console.log('NextAuth API called:', request.url);
+  console.log('NextAuth headers:', Object.fromEntries(request.headers));
+  
+  // Continuar con el manejo normal
+  return NextResponse.next();
 }
 
 export const authOptions = {
@@ -19,59 +26,66 @@ export const authOptions = {
       },
       async authorize(credentials) {
         try {
-          if (!credentials?.email || !credentials?.password) {
-            return null;
-          }
-
-          // Crea una conexión directa a MongoDB para este request
-          const client = new MongoClient(uri);
-          await client.connect();
+          console.log("Authorize function called with email:", credentials.email);
           
-          // Accede a la base de datos
-          const db = client.db();
-          
-          const user = await db.collection("users").findOne({
-            email: credentials.email
+          const db = await connectDB();
+          const user = await db.collection("users").findOne({ 
+            email: credentials.email 
           });
 
-          // Cierra la conexión después de usarla
-          await client.close();
-
-          if (!user || !user.password) {
+          if (!user) {
+            console.log("No user found with email:", credentials.email);
             return null;
           }
 
-          const passwordMatch = await compare(
+          const passwordMatch = await bcrypt.compare(
             credentials.password,
             user.password
           );
 
           if (!passwordMatch) {
+            console.log("Password doesn't match for user:", credentials.email);
             return null;
           }
 
           return {
             id: user._id.toString(),
             email: user.email,
-            name: user.name,
-            randomKey: "Hey cool"
+            name: user.name || user.email.split('@')[0]
           };
         } catch (error) {
-          console.error("Authorization error:", error);
-          return null;
+          console.error("Error in authorize function:", error);
+          throw error; // Propagar el error para mejor diagnóstico
         }
-      }
-    })
+      },
+    }),
   ],
   session: {
-    strategy: "jwt"
+    strategy: "jwt",
+    maxAge: 30 * 24 * 60 * 60, // 30 días
+  },
+  pages: {
+    signIn: '/login',
+    error: '/login',
+  },
+  callbacks: {
+    async jwt({ token, user }) {
+      if (user) {
+        token.id = user.id;
+      }
+      return token;
+    },
+    async session({ session, token }) {
+      if (token && token.id) {
+        session.user.id = token.id;
+      }
+      return session;
+    }
   },
   secret: process.env.NEXTAUTH_SECRET,
-  pages: {
-    signIn: "/login"
-  }
+  debug: true,
+  trustHost: true, // Importante cuando usas direcciones IP
 };
 
 const handler = NextAuth(authOptions);
-
 export { handler as GET, handler as POST };

@@ -1,64 +1,99 @@
 import { NextResponse } from 'next/server';
-import { getDatabase } from '@/lib/mongodb';
+import { connectDB } from '@/lib/mongodb'; // Cambia a connectDB
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '../auth/[...nextauth]/route';
 import { ObjectId } from 'mongodb';
 
 export async function GET(request) {
   try {
-    // Verificar autenticación
-    const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+    // Verificar si es una solicitud pública
+    const { searchParams } = new URL(request.url);
+    const isPublic = searchParams.get('public') === 'true';
+    
+    console.log(`[DEBUG] GET /api/operators (public: ${isPublic})`);
+    
+    let userId = null;
+    
+    // Si no es solicitud pública, verificar autenticación
+    if (!isPublic) {
+      const session = await getServerSession(authOptions);
+      
+      if (!session) {
+        console.log('[WARN] No session found for non-public request');
+        // IMPORTANTE: Devolver un error real en lugar de operadores falsos
+        return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+      }
+      
+      userId = session.user.id;
+      console.log(`[DEBUG] User authenticated, userId: ${userId}`);
     }
     
-    const userId = session.user.id;
-    console.log('GET operators for user:', userId);
+    // Si es solicitud pública y no hay userId específico, devolver un array vacío
+    if (isPublic && !userId && !searchParams.get('userId')) {
+      console.log('[INFO] Public request without userId, returning empty array');
+      return NextResponse.json([]);
+    }
     
-    const db = await getDatabase();
-    // Filtrar operadores por userId
+    const db = await connectDB();
+    
+    // Construir la consulta adecuada
+    let query = {};
+    
+    // Si hay un userId específico en los parámetros (prioridad)
+    if (searchParams.get('userId')) {
+      query.userId = searchParams.get('userId');
+      console.log(`[DEBUG] Filtering by specific userId: ${query.userId}`);
+    } 
+    // Si no es público y hay un usuario autenticado
+    else if (!isPublic && userId) {
+      query.userId = userId;
+      console.log(`[DEBUG] Filtering by authenticated userId: ${userId}`);
+    }
+    
+    console.log(`[DEBUG] Query for operators:`, query);
+    
     const operators = await db.collection('operators')
-      .find({ userId: userId })
-      .sort({ createdAt: -1 })
+      .find(query)
+      .sort({ nombre: 1 })
       .toArray();
-      
+    
+    console.log(`[DEBUG] Found ${operators.length} operators`);
+    
     return NextResponse.json(operators);
   } catch (error) {
-    console.error('Error fetching operators:', error);
+    console.error('[ERROR] Error in /api/operators:', error);
+    // Devolver error real en lugar de operadores falsos
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
 
 export async function POST(request) {
   try {
-    // Verificar autenticación
+    // Verificación de autenticación
     const session = await getServerSession(authOptions);
     if (!session) {
       return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
     }
     
     const userId = session.user.id;
-    console.log('Creating operator for user:', userId);
+    const operatorData = await request.json();
     
-    let data;
-    try {
-      data = await request.json();
-    } catch (error) {
-      return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
-    }
+    // Asignar userId al operador
+    operatorData.userId = userId;
     
-    // Añadir userId al documento
-    data.userId = userId;
-    data.createdAt = new Date();
+    // Añadir timestamp
+    operatorData.createdAt = new Date();
     
-    const db = await getDatabase();
-    const result = await db.collection('operators').insertOne(data);
+    const client = await connectDB();
     
-    const newOperator = await db.collection('operators').findOne({
-      _id: result.insertedId
-    });
+    const db = await connectDB();
+    // Insertar el nuevo operador
+    const result = await db.collection('operators').insertOne(operatorData);
     
-    return NextResponse.json(newOperator);
+    return NextResponse.json({
+      _id: result.insertedId,
+      ...operatorData
+    }, { status: 201 });
   } catch (error) {
     console.error('Error creating operator:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
@@ -76,7 +111,8 @@ export async function DELETE(request) {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
 
-    const db = await getDatabase();
+    const client = await connectDB();
+    const db = await connectDB();
     const result = await db.collection('operators').deleteOne({
       _id: new ObjectId(id),
       userId: session.user.id

@@ -18,7 +18,7 @@ export async function PUT(request, { params }) {
     }
     
     await dbConnect();
-    const { id } = params;
+    const { id } = await params;
     
     // Users can only update their own password
     if (session.user.id !== id) {

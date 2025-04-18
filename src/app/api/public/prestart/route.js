@@ -20,8 +20,7 @@ export async function POST(request) {
       }, { status: 400 });
     }
     
-    const client = await connectDB();
-    const db = client.db();
+    const db = await connectDB();
     
     // Añadir metadatos
     const prestart = {

@@ -126,7 +126,9 @@ const TabAlertas = () => {
 
   return (
     <div className="space-y-6">
-      <h2 className="text-2xl font-bold text-black">Alert System</h2>
+      <div className="mb-4">
+        <h2 className="section-title">Alert System</h2>
+      </div>
       
       {/* Alert configuration */}
       <div className="bg-white rounded-lg shadow p-6">

@@ -27,22 +27,16 @@ export default function RegisterPage() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError('');
-    setLoading(true);
-
-    // Basic validation
+    
+    // Validate passwords match
     if (formData.password !== formData.confirmPassword) {
       setError('Passwords do not match');
-      setLoading(false);
       return;
     }
-
-    if (formData.password.length < 6) {
-      setError('Password must be at least 6 characters long');
-      setLoading(false);
-      return;
-    }
-
+    
+    setError('');
+    setLoading(true);
+  
     try {
       const response = await fetch('/api/register', {
         method: 'POST',
@@ -57,13 +51,22 @@ export default function RegisterPage() {
         }),
       });
 
+      // First check if the response is JSON
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        // Handle non-JSON response
+        const textResponse = await response.text();
+        console.error('Non-JSON response received:', textResponse);
+        throw new Error('Server returned an unexpected response');
+      }
+
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.message || 'Registration failed');
+        throw new Error(data.error || 'Registration failed');
       }
 
-      // Successful registration
+      // Success - redirect to login
       router.push('/login?registered=true');
     } catch (error) {
       console.error('Registration error:', error);
@@ -132,7 +135,7 @@ export default function RegisterPage() {
             />
           </div>
           
-          <div className="mb-4">
+          <div className="mb-6">
             <label className="block text-gray-700">Confirm Password</label>
             <input 
               type="password" 

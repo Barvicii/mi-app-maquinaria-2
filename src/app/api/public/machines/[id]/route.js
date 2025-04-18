@@ -2,9 +2,9 @@ import { NextResponse } from 'next/server';
 import { connectDB } from '@/lib/mongodb';
 import { ObjectId } from 'mongodb';
 
-export async function GET(request, { params }) {
+export async function GET(request, context) {
   try {
-    const { id } = params;
+    const { id } = await context.params;
     console.log('API request for machine ID:', id);
     
     // Validar que el ID sea un ObjectId válido
@@ -13,8 +13,7 @@ export async function GET(request, { params }) {
       return NextResponse.json({ error: 'Invalid machine ID format' }, { status: 400 });
     }
     
-    const client = await connectDB();
-    const db = client.db();
+    const db = await connectDB();
     
     // Buscar la máquina por ID
     const machine = await db.collection('machines').findOne(

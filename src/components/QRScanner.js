@@ -24,7 +24,27 @@ export default function QRScanner() {
 
     qrScanner.render(async (decodedText) => {
       console.log('QR Code decoded:', decodedText);
-      router.push(`/service/${decodedText}`);
+      
+      // Extraer el ID de la máquina del texto decodificado
+      let machineId = decodedText;
+      
+      // Si es una URL completa, extraer el ID
+      if (decodedText.includes('/')) {
+        try {
+          const parts = decodedText.split('/');
+          machineId = parts[parts.length - 1];
+          
+          // Limpiar cualquier parámetro de URL
+          if (machineId.includes('?')) {
+            machineId = machineId.split('?')[0];
+          }
+        } catch (error) {
+          console.error('Error parsing QR URL:', error);
+        }
+      }
+      
+      // IMPORTANTE: Siempre incluir public=true en la navegación
+      router.push(`/service/${machineId}?public=true`);
     }, (error) => {
       console.warn('QR Scan error:', error);
     });

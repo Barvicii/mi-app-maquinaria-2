@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getToken } from 'next-auth/jwt';
+import { connectDB } from '@/lib/mongodb';
+import bcrypt from 'bcryptjs';
 
 // List of public routes
 const publicRoutes = [
@@ -68,3 +70,44 @@ export const config = {
     '/((?!_next/static|_next/image|favicon.ico|public|Imagen).*)',
   ],
 };
+
+export async function POST(request) {
+  try {
+    const { name, email, password } = await request.json();
+    
+    // Validate required fields
+    if (!email || !password) {
+      return NextResponse.json({ error: "Email and password are required" }, { status: 400 });
+    }
+    
+    const db = await connectDB();
+    
+    // Check if user already exists
+    const existingUser = await db.collection('users').findOne({ email });
+    if (existingUser) {
+      return NextResponse.json({ error: "User already exists" }, { status: 409 });
+    }
+    
+    // Hash password
+    const hashedPassword = await bcrypt.hash(password, 10);
+    
+    // Create user
+    const result = await db.collection('users').insertOne({
+      name: name || '',
+      email,
+      password: hashedPassword,
+      createdAt: new Date(),
+    });
+    
+    // Return success without exposing the password
+    return NextResponse.json({
+      id: result.insertedId,
+      email,
+      name: name || '',
+    }, { status: 201 });
+    
+  } catch (error) {
+    console.error('Error creating user:', error);
+    return NextResponse.json({ error: error.message || "Failed to create user" }, { status: 500 });
+  }
+}

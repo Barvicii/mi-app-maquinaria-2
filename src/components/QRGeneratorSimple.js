@@ -138,18 +138,7 @@ export default function QRGeneratorSimple({ maquinas }) {
     <div className="bg-white rounded-lg shadow-lg p-6">
       <h2 className="text-2xl font-bold text-black mb-6 text-center">Generated QR Codes</h2>
 
-      <select
-        value={selectedMachine}
-        onChange={(e) => setSelectedMachine(e.target.value)}
-        className="select-input mb-4"
-      >
-        <option value="">Select a machine</option>
-        {maquinas.map((maquina) => (
-          <option key={maquina._id} value={maquina._id}>
-            {maquina.modelo} - {maquina.serie}
-          </option>
-        ))}
-      </select>
+      
 
       {selectedMachine && (
         <div className="qr-display mt-4">

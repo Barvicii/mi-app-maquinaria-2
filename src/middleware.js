@@ -1,49 +1,76 @@
 import { NextResponse } from 'next/server';
-import { getToken } from "next-auth/jwt";
+import { getToken } from 'next-auth/jwt';
 
-// Mejora: Usar expresiones regulares para rutas dinámicas
+// Array de rutas que siempre son públicas
 const publicRoutes = [
+  '/_next',
+  '/api/auth',
   '/login',
   '/register',
-  '/api/auth',
-  '/api/public', // Ruta base para todas las APIs públicas
-  '/service', // Incluye la ruta base de service
+  '/',
   '/favicon.ico',
-  '/_next',
-  '/Imagen',
+  '/images',
+  '/Imagen'
+];
+
+// Array de rutas de API que pueden ser públicas si se pasa el parámetro public=true
+const conditionalPublicApis = [
+  '/api/technicians',
+  '/api/prestart',
+  '/api/operators',
+  '/api/machines',
+  '/api/services'
 ];
 
 export async function middleware(request) {
-  const { pathname } = request.nextUrl;
+  const { pathname, searchParams } = new URL(request.url);
   
-  // Verificar si la ruta es pública
-  // Mejora: verificación más precisa para rutas dinámicas
-  const isPublicPath = publicRoutes.some(route => 
-    pathname === route || 
-    pathname.startsWith(`${route}/`)
-  );
+  // Log all routes being processed
+  console.log(`[Middleware] Processing: ${pathname} with query params: ${searchParams}`);
   
-  // Si es ruta pública, permitir acceso
-  if (isPublicPath) {
+  // Verificar si es una solicitud pública
+  const isPublicAccess = searchParams.get('public') === 'true';
+  
+  // RUTAS QUE SIEMPRE SON PÚBLICAS
+  if (publicRoutes.some(route => pathname.startsWith(route))) {
     return NextResponse.next();
   }
   
-  // Verificar si hay token (usuario autenticado)
-  const token = await getToken({ 
-    req: request, 
-    secret: process.env.NEXTAUTH_SECRET 
-  });
+  // IMPORTANTE: Permitir acceso público a /service/, /services/ y /prestart/ y sus sub-rutas
+  if (pathname.startsWith('/service/') || 
+      pathname.startsWith('/services/') || 
+      pathname.startsWith('/prestart/')) {
+    console.log(`[Middleware] Allowing public access to service/prestart path: ${pathname}`);
+    return NextResponse.next();
+  }
   
-  // Si no hay token, redirigir al login
+  // IMPORTANTE: Permitir acceso público a APIs con ?public=true
+  if (isPublicAccess && conditionalPublicApis.some(api => pathname.startsWith(api))) {
+    console.log(`[Middleware] Allowing public API access: ${pathname}`);
+    return NextResponse.next();
+  }
+  
+  // Para todas las demás rutas, verificar autenticación
+  const token = await getToken({ req: request });
+  
   if (!token) {
+    console.log(`[Middleware] Authentication required for: ${pathname}, redirecting to login`);
     return NextResponse.redirect(new URL('/login', request.url));
   }
   
   return NextResponse.next();
 }
 
+// Rutas a las que aplicar el middleware
 export const config = {
   matcher: [
-    "/((?!api/auth|_next/static|_next/image|favicon.ico|Imagen/.*|styles/.*).*)",
+    '/dashboard/:path*',
+    '/machines/:path*',
+    '/prestart/:path*',
+    '/services/:path*',
+    '/alerts/:path*',
+    '/qr/:path*',
+    '/operators/:path*',
+    '/admin/:path*', // Make sure admin paths are allowed
   ],
 };

@@ -1,59 +1,78 @@
 import { NextResponse } from "next/server";
-import { getDatabase } from "@/lib/mongodb";
+import { connectDB } from "@/lib/mongodb";
 import bcrypt from "bcryptjs";
+
+// Add a GET handler to test if the route is accessible
+export async function GET() {
+  return NextResponse.json({ status: "Register API is working" });
+}
 
 export async function POST(request) {
   try {
-    const { name, email, password } = await request.json();
-
-    console.log("Registration attempt:", { name, email, passwordLength: password?.length });
+    console.log("Register API called");
     
-    // Validations
+    // Parse request body and log it for debugging
+    const body = await request.json().catch(err => {
+      console.error("Failed to parse request body:", err);
+      return {};
+    });
+    
+    console.log("Register request data:", body);
+    const { name, email, password, organization } = body;
+
+    // Validate required fields
     if (!name || !email || !password) {
+      console.log("Missing required fields");
       return NextResponse.json(
         { error: "Name, email and password are required" },
         { status: 400 }
       );
     }
 
-    const db = await getDatabase();
-    
-    // Check if user already exists
-    const existingUser = await db.collection("users").findOne({
-      email: email.toLowerCase().trim()
-    });
+    try {
+      // Connect to database
+      const db = await connectDB();
+      
+      // Check if user already exists
+      const existingUser = await db.collection("users").findOne({
+        email: email.toLowerCase().trim()
+      });
 
-    if (existingUser) {
+      if (existingUser) {
+        console.log("User already exists");
+        return NextResponse.json(
+          { error: "User with this email already exists" },
+          { status: 400 }
+        );
+      }
+
+      // Hash password
+      const hashedPassword = await bcrypt.hash(password, 10);
+
+      // Create user
+      const result = await db.collection("users").insertOne({
+        name,
+        email: email.toLowerCase().trim(),
+        password: hashedPassword,
+        organization: organization || 'Default',
+        createdAt: new Date()
+      });
+
+      console.log("User created successfully:", result.insertedId);
+      
+      // Return success response without exposing password
+      return NextResponse.json({
+        success: true,
+        userId: result.insertedId,
+        message: "Registration successful"
+      });
+    } catch (dbError) {
+      console.error("Database error:", dbError);
       return NextResponse.json(
-        { error: "User with this email already exists" },
-        { status: 400 }
+        { error: "Database connection error" },
+        { status: 500 }
       );
     }
-
-    // Hash password
-    console.log("Hashing password...");
-    const hashedPassword = await bcrypt.hash(password, 10);
-    console.log("Password hashed successfully");
-
-    // Create user
-    const newUser = {
-      name,
-      email: email.toLowerCase().trim(),
-      password: hashedPassword,
-      createdAt: new Date()
-    };
-
-    const result = await db.collection("users").insertOne(newUser);
-    console.log("User created with ID:", result.insertedId);
-
-    // Return success without password
-    const { password: _, ...userWithoutPassword } = newUser;
-    return NextResponse.json({
-      user: {
-        ...userWithoutPassword,
-        _id: result.insertedId
-      }
-    });
     
   } catch (error) {
     console.error("Register error:", error);

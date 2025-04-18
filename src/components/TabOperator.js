@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
-import { Trash2, Eye, PlusCircle, PencilLine } from 'lucide-react';
+import { Trash2, Eye, PlusCircle, PencilLine, Filter } from 'lucide-react';
 import ModalNewOperator from './ModalNewOperator';
 import DetailsModal from './DetailsModal';
 import Notification from './Notification';
@@ -24,6 +24,14 @@ export default function TabOperator() {
   const [itemsPerPage] = useState(10);
   const [showDetails, setShowDetails] = useState(false);
   const [selectedOperator, setSelectedOperator] = useState(null);
+  
+  // Estados para filtros
+  const [showFilters, setShowFilters] = useState(false);
+  const [filters, setFilters] = useState({
+    name: '',
+    type: '',
+    active: ''
+  });
 
   useEffect(() => {
     fetchOperators();
@@ -31,7 +39,21 @@ export default function TabOperator() {
 
   const fetchOperators = async () => {
     try {
-      const response = await fetch('/api/operators');
+      setLoading(true);
+      
+      // Construir URL con filtros si están activos
+      let url = '/api/operators';
+      const queryParams = [];
+      
+      if (filters.name) queryParams.push(`name=${encodeURIComponent(filters.name)}`);
+      if (filters.type) queryParams.push(`type=${encodeURIComponent(filters.type)}`);
+      if (filters.active) queryParams.push(`active=${filters.active}`);
+      
+      if (queryParams.length > 0) {
+        url += `?${queryParams.join('&')}`;
+      }
+      
+      const response = await fetch(url);
       if (!response.ok) throw new Error('Failed to fetch operators');
       const data = await response.json();
       setOperators(data);
@@ -140,6 +162,19 @@ export default function TabOperator() {
     setCurrentOperator(null);
   };
 
+  const handleFilterChange = (e) => {
+    const { name, value } = e.target;
+    setFilters({
+      ...filters,
+      [name]: value
+    });
+  };
+
+  const applyFilters = () => {
+    setCurrentPage(1); // Resetear a la primera página
+    fetchOperators();
+  };
+
   const indexOfLastItem = currentPage * itemsPerPage;
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
   const currentItems = operators.slice(indexOfFirstItem, indexOfLastItem);
@@ -168,12 +203,41 @@ export default function TabOperator() {
         />
       )}
 
-      <div className="machinary-header">
+      {/* Título principal */}
+      <div className="mb-4">
         <h2 className="section-title">Operator & Technician Management</h2>
+      </div>
+
+      {/* Fila con botón de filtros a la izquierda y botón nuevo operador a la derecha */}
+      <div className="flex justify-between items-center mb-4">
+        {/* Lado izquierdo - Botón de filtros */}
+        <div>
+          <button 
+            onClick={() => setShowFilters(!showFilters)}
+            className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 flex items-center"
+          >
+            <Filter className="mr-2" size={18} />
+            <span>Filtros</span>
+            {showFilters ? (
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 ml-2" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 111.414 1.414l-4 4a1 1 01-1.414 0l-4-4a1 1 010-1.414z" clipRule="evenodd" />
+              </svg>
+            ) : (
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 ml-2" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 011.414-1.414l4 4a1 1 010 1.414l-4 4a1 1 01-1.414 0z" clipRule="evenodd" />
+              </svg>
+            )}
+          </button>
+        </div>
+        
+        {/* Lado derecho - Contador y botón nuevo operador */}
         <div className="flex items-center gap-4">
-          <div className="pagination-info">
+          {/* Contador de registros */}
+          <div className="pagination-info text-sm text-gray-500">
             Showing {indexOfFirstItem + 1}-{Math.min(indexOfLastItem, operators.length)} of {operators.length}
           </div>
+          
+          {/* Botón nuevo operador (ahora en el lado derecho) */}
           <button
             onClick={() => {
               setCurrentOperator(null);
@@ -186,6 +250,73 @@ export default function TabOperator() {
           </button>
         </div>
       </div>
+
+      {/* Panel de filtros (visible solo cuando showFilters es true) */}
+      {showFilters && (
+        <div className="mb-4 p-4 bg-gray-100 rounded-lg transition-all duration-300 ease-in-out">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label className="block text-sm font-medium mb-1">Nombre</label>
+              <input
+                type="text"
+                name="name"
+                value={filters.name}
+                onChange={handleFilterChange}
+                className="w-full p-2 border rounded"
+                placeholder="Buscar por nombre"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Tipo</label>
+              <select
+                name="type"
+                value={filters.type}
+                onChange={handleFilterChange}
+                className="w-full p-2 border rounded"
+              >
+                <option value="">Todos</option>
+                <option value="Operador">Operador</option>
+                <option value="Técnico">Técnico</option>
+                <option value="Supervisor">Supervisor</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Estado</label>
+              <select
+                name="active"
+                value={filters.active}
+                onChange={handleFilterChange}
+                className="w-full p-2 border rounded"
+              >
+                <option value="">Todos</option>
+                <option value="true">Activo</option>
+                <option value="false">Inactivo</option>
+              </select>
+            </div>
+          </div>
+          <div className="mt-2">
+            <button 
+              onClick={applyFilters}
+              className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
+            >
+              Aplicar Filtros
+            </button>
+            <button 
+              onClick={() => {
+                setFilters({
+                  name: '',
+                  type: '',
+                  active: ''
+                });
+                fetchOperators();
+              }}
+              className="ml-2 bg-gray-300 px-4 py-2 rounded hover:bg-gray-400"
+            >
+              Limpiar Filtros
+            </button>
+          </div>
+        </div>
+      )}
 
       {operators.length === 0 ? (
         <div className="empty-message">No operators available.</div>
@@ -213,34 +344,36 @@ export default function TabOperator() {
                     <td>{operator.telefono}</td>
                     <td>{operator.email}</td>
                     <td>{new Date(operator.fechaIngreso).toLocaleDateString()}</td>
-                    <td className="actions-cell">
-                      <button
-                        onClick={() => {
-                          setSelectedOperator(operator);
-                          setShowDetails(true);
-                        }}
-                        className="action-button"
-                        title="Ver detalles"
-                      >
-                        <Eye size={16} />
-                      </button>
-                      <button
-                        onClick={() => {
-                          setCurrentOperator(operator);
-                          setShowModal(true);
-                        }}
-                        className="action-button"
-                        title="Editar"
-                      >
-                        <PencilLine size={16} />
-                      </button>
-                      <button
-                        onClick={() => handleDeleteOld(operator._id)}
-                        className="action-button delete"
-                        title="Eliminar"
-                      >
-                        <Trash2 size={16} />
-                      </button>
+                    <td className="table-cell">
+                      <div className="table-actions">
+                        <button
+                          onClick={() => {
+                            setSelectedOperator(operator);
+                            setShowDetails(true);
+                          }}
+                          className="action-button view-button text-blue-600 hover:text-blue-800 p-2"
+                          title="Ver detalles"
+                        >
+                          <Eye className="button-icon" size={20} />
+                        </button>
+                        <button
+                          onClick={() => {
+                            setCurrentOperator(operator);
+                            setShowModal(true);
+                          }}
+                          className="action-button edit-button text-amber-600 hover:text-amber-800 p-2"
+                          title="Editar"
+                        >
+                          <PencilLine className="button-icon" size={20} />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteOld(operator._id)}
+                          className="action-button delete-button text-red-600 hover:text-red-800 p-2"
+                          title="Eliminar"
+                        >
+                          <Trash2 className="button-icon" size={20} />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}

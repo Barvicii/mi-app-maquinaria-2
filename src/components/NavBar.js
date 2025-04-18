@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Wrench, Clipboard, Bell, Settings, QrCode, Users, BarChart2 } from 'lucide-react';
+import { Wrench, Clipboard, Bell, Settings, QrCode, Users, BarChart2, ClipboardCheck } from 'lucide-react';
 import { useSession } from 'next-auth/react';
 import UserMenu from './UserMenu';
 
@@ -14,6 +14,7 @@ const NavBar = ({ activeTab, onTabChange }) => {
     { id: 'alertas', label: 'Alerts', Icon: Bell },
     { id: 'qr', label: 'QR', Icon: QrCode },
     { id: 'operators', label: 'Operators', Icon: Users },
+
   ];
 
   return (

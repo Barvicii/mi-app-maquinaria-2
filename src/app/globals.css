@@ -18,6 +18,8 @@ body {
   width: 100vw;
   overflow-x: hidden;
   background-color: var(--background);
+  @apply flex flex-col min-h-screen;
+  @apply h-full m-0 p-0;
 }
 
 .flex.justify-center.mb-6 {
@@ -121,6 +123,7 @@ body {
 .content-container {
   @apply w-full max-w-full mx-auto;
   background-color: var(--background);
+  @apply flex-grow;
 }
 
 /* Estilos para el área de trabajo */
@@ -290,5 +293,46 @@ body {
 
 .nav-and-user-container {
   @apply flex items-center space-x-4; /* Added space between nav and user menu */
+}
+
+/* Añadir estos estilos para controlar la posición del footer */
+body {
+  @apply flex flex-col min-h-screen;
+}
+
+main {
+  @apply flex-grow flex flex-col;
+}
+
+.main-footer {
+  @apply mt-auto; /* Esto empuja el footer al final de la página */
+  @apply w-full mt-auto bg-gray-50 py-6 border-t border-gray-200;
+}
+
+.page-container {
+  @apply flex flex-col min-h-screen;
+}
+
+/* Añadir después de las reglas existentes del main-content */
+
+.main-content {
+  @apply px-8 py-6 flex-grow bg-gray-50;
+  min-height: calc(100vh - 64px - 80px); /* Restar altura del header y footer */
+  width: 100%;
+  overflow-x: hidden;
+  @apply flex-grow flex flex-col bg-gray-50 px-8 py-6;
+  min-height: 100%; /* Ocupa todo el alto disponible */
+  width: 100%;
+}
+
+/* Asegurar que el contenido se muestra correctamente en dispositivos móviles */
+@media (max-width: 768px) {
+  .main-content {
+    @apply px-4 py-4;
+  }
+}
+
+.machinary-container {
+  @apply flex-grow;
 }
 

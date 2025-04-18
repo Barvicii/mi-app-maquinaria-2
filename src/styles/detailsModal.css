@@ -1,0 +1,236 @@
+/* Estilos generales del modal */
+.modal-overlay {
+  @apply fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 backdrop-blur-sm;
+}
+
+.modal-content {
+  @apply bg-white rounded-lg shadow-xl w-full max-w-2xl animate-fadeIn;
+  max-height: 90vh; /* Aumentamos ligeramente la altura máxima */
+  overflow: hidden !important; /* Forzar sin overflow */
+}
+
+.modal-header {
+  @apply p-3 flex justify-between items-center border-b; /* Reducido de p-4 a p-3 */
+}
+
+.modal-title {
+  @apply text-base font-semibold text-gray-800; /* Reducido de text-lg a text-base */
+}
+
+.modal-close-button {
+  @apply w-7 h-7 flex items-center justify-center rounded-full hover:bg-gray-100 focus:outline-none transition-colors;
+  /* Reducido de w-8/h-8 a w-7/h-7 */
+}
+
+.modal-body {
+  @apply overflow-y-auto p-3; /* Reducido de p-4 a p-3 */
+  max-height: calc(90vh - 100px); /* Aumentada la altura y reducido el espacio para header/footer */
+}
+
+/* Para evitar scrollbars anidados en componentes hijos */
+.modal-body > div {
+  overflow: visible !important;
+}
+
+.modal-footer {
+  @apply p-2 border-t flex justify-end; /* Reducido de p-3 a p-2 */
+}
+
+.modal-button {
+  @apply px-4 py-2 rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500;
+}
+
+.modal-button-cancel {
+  @apply bg-gray-100 hover:bg-gray-200 text-gray-800;
+}
+
+/* Estilos de las pestañas */
+.modal-tabs {
+  @apply flex border-b overflow-x-auto mb-2; /* Añadido mb-2 para reducir espacio */
+}
+
+.modal-tab {
+  @apply px-3 py-1 text-xs font-medium border-b-2 transition-colors; 
+  /* Reducido de px-4 py-2 text-sm a px-3 py-1 text-xs */
+  @apply border-transparent text-gray-500 hover:text-gray-700;
+}
+
+.modal-tab-active {
+  @apply border-indigo-500 text-indigo-600;
+}
+
+.modal-tab-content {
+  @apply py-2; /* Reducido de py-4 a py-2 */
+  overflow: visible !important;
+}
+
+/* Estilos de secciones */
+.modal-section {
+  @apply mb-3 last:mb-0; /* Reducido de mb-5 a mb-3 */
+}
+
+.modal-section-title {
+  @apply text-xs font-medium text-gray-500 uppercase tracking-wider mb-2; /* Reducido de text-sm a text-xs y mb-3 a mb-2 */
+}
+
+.modal-grid {
+  @apply grid grid-cols-2 gap-x-2 gap-y-1; /* Reducido de gap-x-4 gap-y-2 a gap-x-2 gap-y-1 */
+}
+
+.modal-grid-2 {
+  @apply grid-cols-1 sm:grid-cols-2;
+}
+
+.modal-grid-3 {
+  @apply grid-cols-1 sm:grid-cols-3;
+}
+
+.modal-field {
+  @apply mb-1 last:mb-0; /* Reducido de mb-2 a mb-1 */
+}
+
+.modal-label {
+  @apply text-xs text-gray-600 mr-1; /* Reducido de text-sm a text-xs y mr-2 a mr-1 */
+}
+
+.modal-value {
+  @apply text-sm font-medium text-gray-900; /* Tamaño explícito y reducido */
+}
+
+/* Estilos del encabezado de la información */
+.modal-header-info {
+  @apply bg-gray-50 p-4 rounded-lg mb-4 border-l-4 border-indigo-500;
+}
+
+.modal-header-main {
+  @apply flex-1;
+}
+
+.modal-header-title {
+  @apply font-medium text-gray-900;
+}
+
+.modal-header-subtitle {
+  @apply text-sm text-gray-500;
+}
+
+.modal-header-badge {
+  @apply px-3 py-1 rounded-full border text-sm ml-2;
+}
+
+/* Estilos de las tarjetas de información */
+.modal-card {
+  @apply bg-white p-2 rounded-lg border border-gray-200; /* Reducido de p-3 a p-2 */
+}
+
+.modal-card-label {
+  @apply text-xs uppercase text-gray-500 font-medium mb-1;
+  display: inline-block;
+  margin-right: 4px;
+}
+
+.modal-card-value {
+  @apply text-sm font-semibold; /* Reducido el tamaño */
+}
+
+/* Estilos para listas */
+.modal-list {
+  @apply space-y-1;
+}
+
+.modal-list-item {
+  @apply flex items-center;
+}
+
+.modal-list-marker {
+  @apply w-2 h-2 rounded-full bg-indigo-500 mr-2 flex-shrink-0;
+}
+
+/* Estilos para textos */
+.modal-text {
+  @apply text-gray-700 whitespace-pre-wrap bg-gray-50 p-3 rounded;
+}
+
+/* Estilos para badges de estado */
+.modal-status {
+  @apply px-2 py-1 text-xs font-medium rounded-full;
+}
+
+.modal-status-active {
+  @apply bg-green-100 text-green-800;
+}
+
+.modal-status-inactive {
+  @apply bg-red-100 text-red-800;
+}
+
+.modal-status-warning {
+  @apply bg-yellow-100 text-yellow-800;
+}
+
+/* Estilos para items de check */
+.modal-check-grid {
+  @apply grid grid-cols-2 gap-3;
+}
+
+.modal-check-item {
+  @apply flex items-center p-2 bg-gray-50 rounded;
+}
+
+.modal-check-icon {
+  @apply h-5 w-5 mr-2;
+}
+
+.modal-check-icon-success {
+  @apply text-green-500;
+}
+
+.modal-check-icon-error {
+  @apply text-red-500;
+}
+
+/* Asegurar que los iconos de check sean del color correcto */
+.text-green-500 {
+  color: rgb(34, 197, 94);
+}
+
+.text-red-500 {
+  color: rgb(239, 68, 68);
+}
+
+/* Animaciones */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.2s ease-out forwards;
+}
+
+/* Estilos responsivos */
+@media (max-width: 640px) {
+  .modal-content {
+    @apply max-w-full mx-4;
+  }
+  
+  .modal-tabs {
+    @apply flex-wrap;
+  }
+}
+
+/* Cambios para bloques de información/observaciones */
+.bg-white.p-4.rounded-lg.border {
+  @apply p-2; /* Reducir padding de p-4 a p-2 */
+}
+
+/* Espaciado entre elementos */
+.space-y-5 {
+  @apply space-y-3; /* Reducir espaciado */
+}

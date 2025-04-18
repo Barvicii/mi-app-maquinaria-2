@@ -2,14 +2,23 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { toast } from 'react-toastify';
+import Notification from './Notification';
 
-const PreStartCheckForm = ({ prestartData, setPrestartData, handleSubmit, machineId }) => {
+const PreStartCheckForm = ({ prestartData, setPrestartData, handleSubmit, machineId, equipment, publicMode }) => {
   const router = useRouter();
   const [showSuccess, setShowSuccess] = useState(false);
   const [operators, setOperators] = useState([]);
   const [loading, setLoading] = useState(true);
   const [machine, setMachine] = useState(null);
+  const [template, setTemplate] = useState(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [success, setSuccess] = useState(false);
+  const [error, setError] = useState(null);
+  const [notification, setNotification] = useState({
+    show: false,
+    message: '',
+    type: 'success'
+  });
   
   // Initialize localData with empty values if prestartData not provided
   const [localData, setLocalData] = useState({
@@ -18,121 +27,144 @@ const PreStartCheckForm = ({ prestartData, setPrestartData, handleSubmit, machin
     horasProximoService: '',
     operador: '',
     observaciones: '',
-    aceite: false,
-    agua: false,
-    neumaticos: false,
-    nivelCombustible: false,
-    lucesYAlarmas: false,
-    frenos: false,
-    extintores: false,
-    cinturonSeguridad: false,
     fecha: new Date().toISOString(),
-    estado: 'OK'
+    estado: 'OK',
+    checkValues: {} // Dynamic check values will be stored here
   });
   
   // Use prestartData if provided, otherwise use localData
   const formData = prestartData || localData;
   const setFormData = prestartData ? setPrestartData : setLocalData;
-  
-  useEffect(() => {
-    const loadOperators = async () => {
-      try {
-        setLoading(true);
-        const response = await fetch('/api/operators');
-        if (!response.ok) throw new Error('Error loading operators');
-        const data = await response.json();
-        setOperators(data);
-      } catch (error) {
-        console.error('Error:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    loadOperators();
-  }, []);
 
-  // Add machine fetch
+  // Set maquinaId when component mounts
+  useEffect(() => {
+    if ((machineId || (equipment && equipment._id)) && !formData.maquinaId) {
+      const id = machineId || (equipment ? equipment._id : null);
+      console.log(`Setting initial maquinaId: ${id}`);
+      setFormData(prev => ({
+        ...prev,
+        maquinaId: id
+      }));
+    }
+  }, [machineId, equipment]);
+
+  // Load machine and its template
   useEffect(() => {
     const fetchMachine = async () => {
       try {
-        const response = await fetch(`/api/machines/${machineId}`);
+        if (!machineId) return;
+        
+        // Determine if we should use public mode
+        const isUrlPublic = window.location.search.includes('public=true');
+        const shouldUsePublicMode = publicMode === true || isUrlPublic;
+        
+        // Add public=true parameter to avoid login redirect
+        const timestamp = Date.now();
+        const url = `${shouldUsePublicMode ? 
+          `/api/machines/${machineId}?public=true&_t=${timestamp}` : 
+          `/api/machines/${machineId}?_t=${timestamp}`}`;
+        
+        console.log('Fetching machine data from:', url);
+        
+        const response = await fetch(url);
+        
+        if (!response.ok) {
+          throw new Error(`Error ${response.status}: Could not load machine`);
+        }
+        
         const data = await response.json();
-        if (response.ok) {
-          setMachine(data);
+        console.log('Machine data loaded successfully:', data);
+        setMachine(data);
+        
+        // If this machine has a prestart template, fetch it
+        if (data.prestartTemplateId) {
+          fetchTemplate(data.prestartTemplateId, shouldUsePublicMode);
+        } else {
+          // Otherwise, fetch the default template
+          fetchDefaultTemplate(shouldUsePublicMode);
         }
       } catch (error) {
         console.error('Error fetching machine:', error);
+        setError(error.message);
       }
     };
-
-    if (machineId) {
-      fetchMachine();
-    }
-  }, [machineId]);
-
-  const handleInputChange = (e) => {
-    const { name, type, checked, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: type === 'checkbox' ? checked : value
-    }));
-  };
-
-  const onSubmitForm = async (e) => {
-    e.preventDefault();
     
-    if (handleSubmit) {
-      // If handleSubmit prop is provided, use that
-      await handleSubmit(formData);
-      return;
-    }
+    const fetchTemplate = async (templateId, isPublic) => {
+      try {
+        const timestamp = Date.now();
+        const url = `/api/prestart/templates/${templateId}${isPublic ? `?public=true&_t=${timestamp}` : `?_t=${timestamp}`}`;
+        
+        const response = await fetch(url);
+        
+        if (!response.ok) {
+          throw new Error(`Error ${response.status}: Could not load template`);
+        }
+        
+        const templateData = await response.json();
+        console.log('Template loaded:', templateData);
+        setTemplate(templateData);
+        
+        // Initialize check values with false
+        const initialCheckValues = {};
+        templateData.checkItems.forEach(item => {
+          initialCheckValues[item.name] = false;
+        });
+        
+        setFormData(prev => ({
+          ...prev,
+          checkValues: initialCheckValues
+        }));
+      } catch (error) {
+        console.error('Error fetching template:', error);
+        // If we can't fetch the specific template, try the default
+        fetchDefaultTemplate(isPublic);
+      }
+    };
     
-    try {
-      // Default submit behavior (cuando se usa el componente directamente)
-      const allChecks = [
-        'aceite', 'agua', 'neumaticos', 'nivelCombustible',
-        'lucesYAlarmas', 'frenos', 'extintores', 'cinturonSeguridad'
-      ];
-      
-      const hasFailedChecks = allChecks.some(check => !formData[check]);
-      const estado = hasFailedChecks ? 'Requiere atención' : 'OK';
-
-      const dataToSubmit = {
-        ...formData,
-        estado,
-        fecha: new Date().toISOString()
-      };
-
-      // Verificar que maquinaId existe para incluirlo explícitamente en la solicitud
-      if (formData.maquinaId) {
-        console.log(`Guardando prestart para máquina ID: ${formData.maquinaId}`);
-      } else {
-        console.warn('No se ha proporcionado un ID de máquina para el prestart check');
-      }
-
-      const response = await fetch('/api/prestart', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(dataToSubmit),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Error saving prestart');
-      }
-
-      setShowSuccess(true);
-      setTimeout(() => {
-        setShowSuccess(false);
-        router.push('/dashboard');
-        setFormData({
-          maquinaId: formData.maquinaId, // Mantener el ID de la máquina
-          horasMaquina: '',
-          horasProximoService: '',
-          operador: '',
-          observaciones: '',
+    const fetchDefaultTemplate = async (isPublic) => {
+      try {
+        const timestamp = Date.now();
+        const url = `/api/prestart/templates/default${isPublic ? `?public=true&_t=${timestamp}` : `?_t=${timestamp}`}`;
+        
+        const response = await fetch(url);
+        
+        if (!response.ok) {
+          throw new Error(`Error ${response.status}: Could not load default template`);
+        }
+        
+        const templateData = await response.json();
+        console.log('Default template loaded:', templateData);
+        setTemplate(templateData);
+        
+        // Initialize check values with false
+        const initialCheckValues = {};
+        templateData.checkItems.forEach(item => {
+          initialCheckValues[item.name] = false;
+        });
+        
+        setFormData(prev => ({
+          ...prev,
+          checkValues: initialCheckValues
+        }));
+      } catch (error) {
+        console.error('Error fetching default template:', error);
+        // If we can't load any template, use a basic fallback
+        setTemplate({
+          name: 'Basic Template',
+          checkItems: [
+            { id: '1', name: 'aceite', label: 'Nivel de Aceite', required: true },
+            { id: '2', name: 'agua', label: 'Nivel de Agua', required: true },
+            { id: '3', name: 'neumaticos', label: 'Estado de Neumáticos', required: true },
+            { id: '4', name: 'nivelCombustible', label: 'Nivel de Combustible', required: true },
+            { id: '5', name: 'lucesYAlarmas', label: 'Luces y Alarmas', required: false },
+            { id: '6', name: 'frenos', label: 'Sistema de Frenos', required: true },
+            { id: '7', name: 'extintores', label: 'Extintores', required: false },
+            { id: '8', name: 'cinturonSeguridad', label: 'Cinturón de Seguridad', required: false }
+          ]
+        });
+        
+        // Initialize check values with false for the fallback template
+        const initialCheckValues = {
           aceite: false,
           agua: false,
           neumaticos: false,
@@ -140,38 +172,262 @@ const PreStartCheckForm = ({ prestartData, setPrestartData, handleSubmit, machin
           lucesYAlarmas: false,
           frenos: false,
           extintores: false,
-          cinturonSeguridad: false,
-          fecha: new Date().toISOString(),
-          estado: 'OK'
-        });
-      }, 2000);
+          cinturonSeguridad: false
+        };
+        
+        setFormData(prev => ({
+          ...prev,
+          checkValues: initialCheckValues
+        }));
+      }
+    };
+    
+    fetchMachine();
+  }, [machineId]);
 
+  // Add this console log to debug
+  const fetchOperators = async () => {
+    try {
+      console.log('Fetching operators...');
+      
+      // Skip if no machine is loaded yet
+      if (!machine) {
+        console.log('Machine not loaded, skipping operator fetch');
+        return;
+      }
+      
+      // Determine if public mode is enabled
+      const isUrlPublic = window.location.search.includes('public=true');
+      const shouldUsePublicMode = publicMode === true || isUrlPublic;
+      
+      // Build URL with parameters
+      const params = new URLSearchParams();
+      if (shouldUsePublicMode) params.append('public', 'true');
+      if (machine.credentialId) params.append('credentialId', machine.credentialId);
+      params.append('_t', Date.now()); // Cache busting
+      
+      const url = `/api/operators?${params.toString()}`;
+      
+      console.log('Fetching operators from:', url);
+      const response = await fetch(url);
+      
+      if (!response.ok) {
+        console.error(`Error fetching operators: ${response.status}`);
+        // Don't throw for 401 in public mode, just set empty operators
+        if (response.status === 401 && shouldUsePublicMode) {
+          console.log('Authentication required, using empty operators list');
+          setOperators([]);
+          return;
+        }
+        throw new Error(`Error ${response.status}`);
+      }
+      
+      const data = await response.json();
+      console.log('Operators loaded:', data.length);
+      setOperators(data);
     } catch (error) {
-      console.error('Submit error:', error);
-      alert('Error saving prestart: ' + error.message);
+      console.error('Error fetching operators:', error);
+      // Use empty array as fallback
+      setOperators([]);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const checkItems = [
-    { name: 'aceite', label: 'Nivel de Aceite' },
-    { name: 'agua', label: 'Nivel de Agua' },
-    { name: 'neumaticos', label: 'Estado de Neumáticos' },
-    { name: 'nivelCombustible', label: 'Nivel de Combustible' },
-    { name: 'lucesYAlarmas', label: 'Luces y Alarmas' },
-    { name: 'frenos', label: 'Sistema de Frenos' },
-    { name: 'extintores', label: 'Extintores' },
-    { name: 'cinturonSeguridad', label: 'Cinturón de Seguridad' }
-  ];
-
-  // Debug - Mostrar en consola si tenemos maquinaId
   useEffect(() => {
-    if (formData.maquinaId) {
-      console.log(`PreStartCheckForm - maquinaId presente: ${formData.maquinaId}`);
+    fetchOperators();
+  }, [machine]); // Depend on machine instead of an empty array
+
+  // Handle form input changes
+  const handleInputChange = (e) => {
+    const { name, value, type, checked } = e.target;
+    
+    if (name.startsWith('check_')) {
+      // This is a check item - update the checkValues object
+      const checkName = name.replace('check_', '');
+      setFormData(prev => ({
+        ...prev,
+        checkValues: {
+          ...prev.checkValues,
+          [checkName]: checked
+        }
+      }));
+    } else {
+      // This is a regular form field
+      setFormData(prev => ({
+        ...prev,
+        [name]: type === 'checkbox' ? checked : value
+      }));
     }
-  }, [formData.maquinaId]);
+  };
+
+  // Function to show notifications
+  const showNotification = (message, type = 'success') => {
+    setNotification({
+      show: true,
+      message,
+      type
+    });
+    
+    setTimeout(() => {
+      setNotification(prev => ({ ...prev, show: false }));
+    }, 5000);
+  };
+
+  // Form submission handler
+  const onSubmitForm = async (e) => {
+    e.preventDefault();
+    
+    if (submitting) return;
+    
+    setSubmitting(true);
+    setError(null);
+    
+    try {
+      const currentMachineId = formData.maquinaId || machineId || 
+        (equipment && equipment._id ? equipment._id : null);
+      
+      if (!currentMachineId) {
+        throw new Error('No machine ID specified');
+      }
+      
+      // Check if any required fields are missing
+      const requiredFields = ['horasMaquina', 'horasProximoService', 'operador'];
+      for (const field of requiredFields) {
+        if (!formData[field]) {
+          throw new Error(`${field} is required`);
+        }
+      }
+      
+      // Check if any required check items are not checked
+      if (template) {
+        const requiredChecks = template.checkItems.filter(item => item.required);
+        for (const check of requiredChecks) {
+          if (!formData.checkValues[check.name]) {
+            throw new Error(`${check.label} is required`);
+          }
+        }
+      }
+      
+      // Prepare operator info if available
+      let operadorInfo = null;
+      if (formData.operador && operators.length > 0) {
+        const selectedOperator = operators.find(op => 
+          `${op.nombre} ${op.apellido || ''}`.trim() === formData.operador.trim()
+        );
+        
+        if (selectedOperator) {
+          operadorInfo = {
+            id: selectedOperator._id,
+            nombre: selectedOperator.nombre,
+            apellido: selectedOperator.apellido || ''
+          };
+        }
+      }
+      
+      // Build data to send to the API
+      const dataToSend = {
+        maquinaId: currentMachineId,
+        horasMaquina: formData.horasMaquina,
+        horasProximoService: formData.horasProximoService,
+        operador: formData.operador,
+        operadorInfo: operadorInfo,
+        observaciones: formData.observaciones || '',
+        checkValues: formData.checkValues,
+        templateId: template?._id || null,
+        fecha: new Date().toISOString()
+      };
+      
+      const timestamp = Date.now();
+      const url = `/api/prestart?public=true&_t=${timestamp}`;
+      
+      console.log('[DEBUG] Sending prestart to URL:', url);
+      console.log('[DEBUG] Data to send:', dataToSend);
+      
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify(dataToSend)
+      });
+      
+      // Handle response
+      const contentType = response.headers.get('content-type');
+      
+      if (!response.ok) {
+        if (contentType && contentType.includes('application/json')) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || `Error ${response.status}: Could not save prestart`);
+        } else {
+          const errorText = await response.text();
+          throw new Error(`Error ${response.status}: ${errorText}`);
+        }
+      }
+      
+      const responseData = await response.json();
+      console.log('[DEBUG] Server response:', responseData);
+      
+      // Show success notification
+      setSuccess(true);
+      showNotification('Pre-start check saved successfully', 'success');
+      
+      // Redirect to thanks page
+      if (responseData.success || responseData.id) {
+        setShowSuccess(true);
+        setTimeout(() => {
+          router.push(`/thanks?type=prestart&machineId=${currentMachineId}`);
+        }, 1000);
+      }
+      
+      // Reset form if needed
+      if (!prestartData) {
+        resetForm();
+      }
+    } catch (error) {
+      console.error('[ERROR] Error submitting prestart:', error);
+      setError(error.message || 'Unknown error');
+      showNotification(error.message || 'Unknown error', 'error');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // Reset form function
+  const resetForm = () => {
+    // Keep machine ID and template-specific check values
+    const checkValues = {};
+    if (template) {
+      template.checkItems.forEach(item => {
+        checkValues[item.name] = false;
+      });
+    }
+    
+    setFormData({
+      maquinaId: formData.maquinaId,
+      horasMaquina: '',
+      horasProximoService: '',
+      operador: formData.operador,
+      observaciones: '',
+      fecha: new Date().toISOString(),
+      estado: 'OK',
+      checkValues: checkValues
+    });
+  };
 
   return (
     <div className="relative">
+      {/* Notification Component */}
+      {notification.show && (
+        <Notification
+          message={notification.message}
+          type={notification.type}
+          show={notification.show}
+          onClose={() => setNotification(prev => ({ ...prev, show: false }))}
+        />
+      )}
+      
       {showSuccess && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white p-6 rounded-lg shadow-xl">
@@ -184,32 +440,29 @@ const PreStartCheckForm = ({ prestartData, setPrestartData, handleSubmit, machin
           </div>
         </div>
       )}
-
+      
       <div className="max-w-4xl mx-auto p-4">
-        {/* Add machine info at the top */}
+        {/* Machine info at the top */}
         {machine && (
           <div className="space-y-6 text-center mb-6">
-            <div className="flex justify-center">
-              <img 
-                src="/Imagen/logoo.png" 
-                alt="Logo" 
-                className="w-60 h-auto"
-              />
-            </div>
-            <span className="brand-text">Orchard Service</span>
             <h2 className="text-2xl font-bold text-gray-800">
-              {machine.customId || 'No ID'}
+              {machine.customId || ''}
             </h2>
+            {template && (
+              <p className="text-gray-500">
+                Using template: {template.name}
+              </p>
+            )}
           </div>
         )}
 
         <form onSubmit={onSubmitForm} className="space-y-4">
-          {/* Campo oculto para el ID de máquina */}
+          {/* Hidden field for machine ID */}
           <input type="hidden" name="maquinaId" value={formData.maquinaId || ''} />
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
-              <label className="block mb-1 text-black">Horas de la Máquina</label>
+              <label className="block mb-1 text-black">Machine Hours</label>
               <input
                 type="number"
                 name="horasMaquina"
@@ -217,12 +470,12 @@ const PreStartCheckForm = ({ prestartData, setPrestartData, handleSubmit, machin
                 onChange={handleInputChange}
                 className="w-full p-2 border rounded-md text-black"
                 required
-                placeholder="Ingrese las horas actuales"
+                placeholder="Enter current hours"
               />
             </div>
 
             <div>
-              <label className="block mb-1 text-black">Horas Próximo Service</label>
+              <label className="block mb-1 text-black">Next Service Hours</label>
               <input
                 type="number"
                 name="horasProximoService"
@@ -230,64 +483,98 @@ const PreStartCheckForm = ({ prestartData, setPrestartData, handleSubmit, machin
                 onChange={handleInputChange}
                 className="w-full p-2 border rounded-md text-black"
                 required
-                placeholder="Ingrese las horas para el próximo service"
+                placeholder="Enter hours for next service"
               />
             </div>
           </div>
 
           <div>
-            <label className="block mb-1 text-black">Operador</label>
-            <select
-              name="operador"
-              value={formData.operador || ''}
-              onChange={handleInputChange}
-              className="w-full p-2 border rounded-md text-black"
-              required
-            >
-              <option value="">Seleccionar operador...</option>
-              {operators.map((op) => (
-                <option key={op._id} value={`${op.nombre} ${op.apellido}`}>
-                  {op.nombre} {op.apellido}
-                </option>
-              ))}
-            </select>
+            <label className="block mb-1 text-black">Operator</label>
+            {loading ? (
+              <div className="w-full p-2 border rounded-md bg-gray-100 text-gray-600">
+                Loading operators...
+              </div>
+            ) : operators.length > 0 ? (
+              <select
+                name="operador"
+                value={formData.operador || ''}
+                onChange={handleInputChange}
+                className="w-full p-2 border rounded-md text-black"
+                required
+              >
+                <option value="">Select operator...</option>
+                {operators.map((op) => (
+                  <option key={op._id} value={`${op.nombre} ${op.apellido || ''}`}>
+                    {op.nombre} {op.apellido || ''}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <div className="space-y-2">
+                <input
+                  type="text"
+                  name="operador"
+                  value={formData.operador || ''}
+                  onChange={handleInputChange}
+                  className="w-full p-2 border rounded-md text-black"
+                  placeholder="Enter operator name"
+                  required
+                />
+                <p className="text-sm text-amber-600">
+                  Could not load operators. Please enter the name manually.
+                </p>
+              </div>
+            )}
           </div>
 
           <div className="space-y-3">
-            {checkItems.map(item => (
-              <div key={item.name} className="flex items-center space-x-2">
-                <input
-                  type="checkbox"
-                  id={item.name}
-                  name={item.name}
-                  checked={formData[item.name] || false}
-                  onChange={handleInputChange}
-                  className="w-5 h-5"
-                />
-                <label htmlFor={item.name} className="text-black">
-                  {item.label}
-                </label>
+            <h3 className="font-medium text-black">Check Items</h3>
+            
+            {template ? (
+              // Dynamic check items based on the template
+              template.checkItems.map((item, index) => (
+                <div key={item.id || `check-item-${index}`} className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    id={`check_${item.name}`}
+                    name={`check_${item.name}`}
+                    checked={formData.checkValues[item.name] || false}
+                    onChange={handleInputChange}
+                    className="w-5 h-5"
+                  />
+                  <label htmlFor={`check_${item.name}`} className="text-black">
+                    {item.label}
+                    {item.required && <span className="text-red-500 ml-1">*</span>}
+                  </label>
+                </div>
+              ))
+            ) : (
+              <div className="text-amber-600">
+                Loading check items...
               </div>
-            ))}
+            )}
           </div>
 
           <div>
-            <label className="block mb-1 text-black">Observaciones</label>
+            <label className="block mb-1 text-black">Observations</label>
             <textarea
               name="observaciones"
               value={formData.observaciones || ''}
               onChange={handleInputChange}
               className="w-full p-2 border rounded-md text-black"
               rows={4}
-              placeholder="Ingrese sus observaciones aquí..."
+              placeholder="Enter your observations here..."
             />
           </div>
 
           <button
             type="submit"
-            className="w-full bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700 shadow-md"
+            disabled={submitting}
+            className={`w-full bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700 shadow-md ${
+              submitting ? 'opacity-50 cursor-not-allowed' : ''
+            }`}
           >
-            Guardar Pre-Start
+            {submitting ? 'Saving...' : 'Save Pre-Start'}
           </button>
         </form>
       </div>

@@ -1,49 +1,76 @@
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "../../auth/[...nextauth]/route";
+import { connectDB } from '@/lib/mongodb';
 import { ObjectId } from 'mongodb';
 import { NextResponse } from 'next/server';
-import { getDatabase } from '@/lib/mongodb';
+import { getServerSession } from 'next-auth/next';
+import { authOptions } from '../../auth/[...nextauth]/route';
 
 export async function GET(request, { params }) {
   try {
-    // Asegúrate de await los params
-    const { id } = params;
-    
-    // Validar que el ID sea un ObjectId válido
-    if (!ObjectId.isValid(id)) {
-      return NextResponse.json({ error: 'Invalid machine ID format' }, { status: 400 });
+    // Asegurarse de que params esté definido antes de acceder a id
+    if (!params) {
+      console.error('params is undefined');
+      return NextResponse.json({ error: "Invalid request: params is undefined" }, { status: 400 });
     }
     
-    const client = await connectDB();
-    const db = await getDatabase();
+    const id = params.id;
     
-    // Solo devolver campos necesarios para acceso público
-    const machine = await db.collection('machines').findOne(
-      { _id: new ObjectId(id) },
-      { projection: { 
-        model: 1, 
-        brand: 1, 
-        machineId: 1, 
-        customId: 1,
-        serialNumber: 1,
-        // Añadir cualquier otro campo necesario para prestart/service
-        imagen: 1, // Si hay imagen de la máquina
-        lastService: 1, // Puede ser útil mostrar última fecha de servicio
-      }}
-    );
+    console.log(`GET /api/machines/${id} (public: true)`);
+    
+    if (!id) {
+      return NextResponse.json({ error: "Machine ID is required" }, { status: 400 });
+    }
+    
+    const { searchParams } = new URL(request.url);
+    const isPublic = searchParams.get('public') === 'true';
+    
+    const db = await connectDB();
+    
+    // Mejora: Búsqueda más flexible por diferentes tipos de ID
+    let machine = null;
+    
+    // 1. Intentar buscar por ObjectId
+    if (ObjectId.isValid(id)) {
+      machine = await db.collection('machines').findOne({ 
+        _id: new ObjectId(id) 
+      });
+      console.log(`Búsqueda por ObjectId: ${!!machine}`);
+    }
+    
+    // 2. Si no se encuentra, buscar por machineId, maquinaId o cualquier otro campo ID
+    if (!machine) {
+      machine = await db.collection('machines').findOne({
+        $or: [
+          { machineId: id },
+          { maquinaId: id },
+          { customId: id }
+        ]
+      });
+      console.log(`Búsqueda por IDs alternativos: ${!!machine}`);
+    }
     
     if (!machine) {
-      return NextResponse.json({ error: 'Machine not found' }, { status: 404 });
+      console.log(`Machine with ID ${id} not found`);
+      return NextResponse.json({ error: "Machine not found" }, { status: 404 });
     }
     
-    return NextResponse.json(machine);
+    console.log(`Machine found: ${machine._id}`);
+    
+    // Asegurarse de que la respuesta incluya todos los campos necesarios
+    const response = {
+      ...machine,
+      _id: machine._id.toString(),
+      machineId: machine.machineId || machine._id.toString(),
+      maquinaId: machine.maquinaId || machine.machineId || machine._id.toString()
+    };
+    
+    return NextResponse.json(response);
   } catch (error) {
     console.error('Error fetching machine:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
 
-export async function PUT(request, { params }) {
+export async function PUT(request, context) {
   try {
     // Verificar autenticación
     const session = await getServerSession(authOptions);
@@ -52,13 +79,13 @@ export async function PUT(request, { params }) {
     }
     
     const userId = session.user.id;
-    const id = params?.id;
+    const { id } = await context.params;
     
     if (!id || !ObjectId.isValid(id)) {
       return NextResponse.json({ error: "Invalid machine ID" }, { status: 400 });
     }
 
-    const db = await getDatabase();
+    const db = await connectDB();
     
     // Verificar que la máquina existe y pertenece al usuario
     const existingMachine = await db.collection('machines').findOne({
@@ -101,7 +128,7 @@ export async function PUT(request, { params }) {
   }
 }
 
-export async function DELETE(request, { params }) {
+export async function DELETE(request, context) {
   try {
     // Verificar autenticación
     const session = await getServerSession(authOptions);
@@ -110,13 +137,13 @@ export async function DELETE(request, { params }) {
     }
     
     const userId = session.user.id;
-    const id = params?.id;
+    const { id } = await context.params;
     
     if (!id || !ObjectId.isValid(id)) {
       return NextResponse.json({ error: "Invalid machine ID" }, { status: 400 });
     }
     
-    const db = await getDatabase();
+    const db = await connectDB();
     
     // Eliminar solo si pertenece al usuario
     const result = await db.collection('machines').deleteOne({

@@ -51,85 +51,105 @@ const ServiceForm = ({ machineId, machine }) => {
     maquina: maquina?.model || maquina?.modelo || ''
   });
 
+  // Modify the handleSubmit function to include better error handling
   const handleSubmit = async (formData) => {
     try {
+      console.log('ServiceForm - Starting form submission with data:', formData);
+      
+      // Ensure we're using the correct endpoint
+      const isPublic = window.location.search.includes('public=true');
+      const endpoint = formType === 'prestart' 
+        ? (isPublic ? '/api/prestart?public=true' : '/api/prestart')
+        : (isPublic ? '/api/services?public=true' : '/api/services');
+      
+      console.log(`ServiceForm - Using endpoint: ${endpoint}`);
+
+      // Ensure machineId is included correctly
       const submissionData = {
-        maquinaId: machineId.toString(),
+        machineId: machineId.toString(),
         fecha: new Date().toISOString(),
         tipo: formType,
         datos: formType === 'prestart' ? {
           ...prestartData,
-          maquina: maquina?.model || maquina?.modelo || '',
+          maquinaId: machineId.toString(), // Ensure maquinaId is also set
+          maquina: maquina?.model || maquina?.marca || '',
         } : {
           ...serviceData,
-          maquina: maquina?.model || maquina?.modelo || '',
+          machineId: machineId.toString(), // Ensure machineId is also set in the datos
+          maquina: maquina?.model || maquina?.marca || '',
         }
       };
 
-      console.log('Submitting form data:', submissionData);
+      console.log('ServiceForm - Submitting data:', JSON.stringify(submissionData, null, 2));
 
-      const endpoint = formType === 'prestart' ? '/api/prestart' : '/api/services';
       const response = await fetch(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Accept': 'application/json',
         },
         body: JSON.stringify(submissionData),
       });
 
+      // Get full response details for better debugging
+      const responseStatus = response.status;
+      const responseStatusText = response.statusText;
+      console.log(`ServiceForm - Response status: ${responseStatus} ${responseStatusText}`);
+
+      // Try to get the response text first (in case it's not JSON)
+      const responseText = await response.text();
+      console.log(`ServiceForm - Response text: ${responseText}`);
+
       if (!response.ok) {
-        throw new Error('Error saving record');
+        let errorMessage = `Server error: ${responseStatus} ${responseStatusText}`;
+        
+        try {
+          // Try to parse as JSON if possible
+          const errorData = JSON.parse(responseText);
+          if (errorData.error) {
+            errorMessage = errorData.error;
+          }
+        } catch (e) {
+          // If not JSON, use the text as is
+          console.warn('ServiceForm - Response is not valid JSON');
+        }
+        
+        throw new Error(errorMessage);
       }
 
-      const result = await response.json();
-      console.log('Response from server:', result);
+      let result;
+      try {
+        result = JSON.parse(responseText);
+      } catch (e) {
+        console.warn('ServiceForm - Response is not valid JSON, but request succeeded');
+        result = { success: true };
+      }
 
-      setNotificationMessage(`${formType === 'prestart' ? 'Pre-Start Check' : 'Service'} saved successfully`);
+      console.log('ServiceForm - Successfully saved record:', result);
+      
+      // Show success notification
       setShowNotification(true);
-      setHasUnsavedChanges(false);
-
-      // Reset form data
-      if (formType === 'prestart') {
-        setPrestartData({
-          maquinaId: machineId, // Mantener el maquinaId al resetear
-          horasMaquina: '',
-          aceite: false,
-          agua: false,
-          neumaticos: false,
-          nivelCombustible: false,
-          lucesYAlarmas: false,
-          frenos: false,
-          extintores: false,
-          cinturonSeguridad: false,
-          observaciones: '',
-          operador: '',
-          maquina: maquina?.model || maquina?.modelo || ''
-        });
-      } else {
-        setServiceData({
-          maquinaId: machineId, // Mantener el maquinaId al resetear
-          tipoService: '',
-          horasActuales: '',
-          horasProximoService: '',
-          tecnico: '',
-          trabajosRealizados: [],
-          observaciones: '',
-          repuestos: '',
-          maquina: maquina?.model || maquina?.modelo || ''
-        });
-      }
-
-      // Redirect after showing notification
-      setTimeout(() => {
-        router.push('/');
-      }, 2000);
-
+      setNotificationMessage(formType === 'prestart' ? 'Pre-start check saved successfully' : 'Service record saved successfully');
+      
+      // Return the result
+      return result;
     } catch (error) {
-      console.error('Error saving record:', error);
-      setNotificationMessage(error.message || 'Error saving data');
+      console.error('ServiceForm - Error saving record:', error);
+      
+      // Show error notification
       setShowNotification(true);
+      setNotificationMessage(`Error: ${error.message}`);
+      
+      throw error;
     }
   };
+
+  // Agregar console.log para depuración
+  useEffect(() => {
+    console.log('ServiceForm formType changed to:', formType);
+    console.log('Machine data available:', machine);
+    console.log('MachineId:', machineId);
+  }, [formType, machine, machineId]);
 
   const InitialSelection = () => (
     <div className="space-y-6 text-center">
@@ -164,7 +184,10 @@ const ServiceForm = ({ machineId, machine }) => {
           Pre-Start Check
         </button>
         <button 
-          onClick={() => setFormType('service')}
+          onClick={() => {
+            console.log('Service button clicked, setting formType to service');
+            setFormType('service');
+          }}
           className="h-16 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 shadow-md font-medium text-lg transition-colors"
         >
           Service
@@ -230,6 +253,19 @@ const ServiceForm = ({ machineId, machine }) => {
                     prestartData={prestartData}
                     setPrestartData={setPrestartData}
                     handleSubmit={handleSubmit}
+                    equipment={maquina}
+                    machineId={machineId}
+                    publicMode={true}
+                    userId={maquina?.userId}
+                    onSubmitSuccess={() => {
+                      // NO intentar cargar la máquina aquí, solo mostrar notificación
+                      setShowNotification(true);
+                      setNotificationMessage('Pre-start check guardado exitosamente');
+                      setTimeout(() => {
+                        // Opcional: volver a la vista principal después de guardar
+                        setFormType('main');
+                      }, 2000);
+                    }}
                   />
                 </div>
               )}
@@ -238,11 +274,13 @@ const ServiceForm = ({ machineId, machine }) => {
                 <div className="flex flex-col items-center">
                   <BackButton />
                   <h3 className="text-xl font-medium text-black mb-4">Service Record</h3>
+                  {console.log('Rendering ServiceFormComponent with:', { machineId, machine: maquina })}
                   <ServiceFormComponent 
-                    onSubmit={handleSubmit}
-                    serviceData={serviceData}
-                    setServiceData={setServiceData}
-                    maquinaId={machineId}
+                    machineId={machineId} // Asegurar que se pasa correctamente
+                    machine={maquina} // Pasar la máquina explícitamente
+                    serviceData={serviceData} // Pasar el estado del servicio
+                    setServiceData={setServiceData} // Pasar la función para actualizar el estado
+                    onSubmit={handleSubmit} // Pasar la función de envío
                   />
                 </div>
               )}
