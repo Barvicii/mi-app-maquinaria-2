@@ -30,7 +30,10 @@ if (process.env.NODE_ENV === 'development') {
 export async function connectDB() {
   try {
     const client = await clientPromise;
-    const db = client.db();
+    // Extraer el nombre de la base de datos de la URI o usar uno por defecto
+    const dbName = process.env.MONGODB_DB || uri.split('/').pop().split('?')[0] || 'test';
+    console.log('Connecting to database:', dbName);
+    const db = client.db(dbName);
     return db;
   } catch (error) {
     console.error('Error connecting to database:', error);
