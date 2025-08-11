@@ -1,6 +1,24 @@
-# 🚀 Machinery Management - Monorepo
+# � Mi App Maquinaria - Sistema de Gestión de Maquinaria Agrícola
 
-## Estructura del Proyecto
+Sistema completo de gestión para maquinaria agrícola con funcionalidades de pre-arranque, seguimiento de servicios, gestión de operadores y administración multi-organizacional.
+
+## �🚀 Características Principales
+
+### ✨ Funcionalidades Core
+- **Pre-arranque Digital**: Checklists digitales personalizables para cada máquina
+- **Gestión de Máquinas**: Registro completo con códigos QR para identificación
+- **Control de Operadores**: Gestión de operadores internos y externos
+- **Servicios y Mantenimiento**: Tracking completo de servicios preventivos y correctivos
+- **Sistema de Alertas**: Notificaciones automáticas para mantenimientos
+- **Gestión de Diesel**: Control de tanques y recargas con códigos QR
+
+### 🏢 Multi-Organización
+- **Super Admin**: Control total del sistema
+- **Admin de Organización**: Gestión completa de su organización
+- **Usuarios**: Acceso controlado según permisos
+- **Gestión de Límites**: Control de usuarios por organización
+
+## 🏗️ Arquitectura - Monorepo
 
 ```
 mi-app-maquinaria-2/
