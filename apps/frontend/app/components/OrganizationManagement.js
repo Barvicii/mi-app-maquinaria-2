@@ -23,6 +23,8 @@ const OrganizationManagement = () => {
   const [selectedOrg, setSelectedOrg] = useState(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [orgToDelete, setOrgToDelete] = useState(null);
 
   // Form states
   const [createForm, setCreateForm] = useState({
@@ -158,9 +160,41 @@ const OrganizationManagement = () => {
     setShowEditModal(true);
   };
 
+  const handleDeleteOrganization = async () => {
+    if (!orgToDelete) return;
+
+    try {
+      const response = await fetch(`/api/organizations-native/${orgToDelete._id}`, {
+        method: 'DELETE'
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        setShowDeleteModal(false);
+        setOrgToDelete(null);
+        fetchOrganizations();
+      } else {
+        setError(data.error || 'Error deleting organization');
+      }
+    } catch (err) {
+      setError('Connection error');
+    }
+  };
+
+  const openDeleteModal = (org) => {
+    setOrgToDelete(org);
+    setShowDeleteModal(true);
+  };
+
+  const canDeleteOrganization = (org) => {
+    return org.currentUserCount === 0;
+  };
+
   const filteredOrganizations = organizations.filter(org =>
     org.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    org.adminId?.name.toLowerCase().includes(searchTerm.toLowerCase())
+    org.adminId?.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    org.adminId?.email.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   if (session?.user?.role !== 'SUPER_ADMIN') {
@@ -201,7 +235,7 @@ const OrganizationManagement = () => {
           <Search className="w-5 h-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
           <input
             type="text"
-            placeholder="Search organizations..."
+            placeholder="Search by organization name, admin name or email..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -237,19 +271,43 @@ const OrganizationManagement = () => {
                 <div className="flex space-x-2">
                   <button
                     onClick={() => openEditModal(org)}
-                    className="text-blue-600 hover:text-blue-800"
-                    title="Edit"
+                    className="text-blue-600 hover:text-blue-800 p-1 rounded"
+                    title="Editar organización"
                   >
                     <Edit3 className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => openDeleteModal(org)}
+                    disabled={!canDeleteOrganization(org)}
+                    className={`p-1 rounded ${
+                      canDeleteOrganization(org)
+                        ? 'text-red-600 hover:text-red-800'
+                        : 'text-gray-400 cursor-not-allowed'
+                    }`}
+                    title={
+                      canDeleteOrganization(org)
+                        ? 'Eliminar organización'
+                        : `No se puede eliminar: tiene ${org.currentUserCount} usuarios asignados`
+                    }
+                  >
+                    <Trash2 className="w-4 h-4" />
                   </button>
                 </div>
               </div>
 
               {/* Stats */}
               <div className="space-y-3">
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-gray-600">Administrator:</span>
-                  <span className="text-sm font-medium">{org.adminId?.name}</span>
+                <div className="space-y-1">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-600">Administrator:</span>
+                    <span className="text-sm font-medium">{org.adminId?.name || 'N/A'}</span>
+                  </div>
+                  {org.adminId?.email && (
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-gray-500 pl-4">Email:</span>
+                      <span className="text-sm text-gray-600">{org.adminId.email}</span>
+                    </div>
+                  )}
                 </div>
                 
                 <div className="flex justify-between items-center">
@@ -453,6 +511,94 @@ const OrganizationManagement = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Organization Confirmation Modal */}
+      {showDeleteModal && orgToDelete && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+            <div className="flex items-center mb-4">
+              <div className="flex items-center justify-center w-12 h-12 rounded-full bg-red-100 mr-4">
+                <Trash2 className="w-6 h-6 text-red-600" />
+              </div>
+              <div>
+                <h2 className="text-xl font-semibold text-gray-900">Confirmar Eliminación</h2>
+                <p className="text-gray-600 text-sm">Esta acción no se puede deshacer</p>
+              </div>
+            </div>
+            
+            <div className="mb-6">
+              <p className="text-gray-700 mb-2">
+                ¿Estás seguro de que quieres eliminar la organización?
+              </p>
+              <div className="bg-gray-50 rounded-lg p-3 border">
+                <p className="font-semibold text-gray-900">{orgToDelete.name}</p>
+                <p className="text-sm text-gray-600">
+                  Administrador: {orgToDelete.adminId?.name || 'N/A'}
+                </p>
+                <p className="text-sm text-gray-600">
+                  {orgToDelete.currentUserCount} usuarios • {orgToDelete.machinesCount || 0} máquinas
+                </p>
+              </div>
+              
+              {/* Mostrar advertencia si tiene usuarios */}
+              {orgToDelete.currentUserCount > 0 ? (
+                <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg">
+                  <div className="flex items-center mb-2">
+                    <AlertTriangle className="w-4 h-4 text-red-500 mr-2" />
+                    <p className="text-red-700 text-sm font-medium">
+                      No se puede eliminar esta organización
+                    </p>
+                  </div>
+                  <p className="text-red-600 text-sm">
+                    La organización tiene <strong>{orgToDelete.currentUserCount} usuario(s)</strong> asignado(s). 
+                    Debes remover todos los usuarios antes de poder eliminarla.
+                  </p>
+                  <div className="mt-2">
+                    <p className="text-sm text-red-600">
+                      • Ve a la sección de Usuarios
+                    </p>
+                    <p className="text-sm text-red-600">
+                      • Reasigna o elimina los usuarios de esta organización
+                    </p>
+                    <p className="text-sm text-red-600">
+                      • Luego podrás eliminar la organización
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg">
+                  <div className="flex items-center">
+                    <AlertTriangle className="w-4 h-4 text-red-500 mr-2" />
+                    <p className="text-red-700 text-sm font-medium">
+                      Advertencia: Se eliminarán todos los datos asociados
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="flex space-x-3">
+              <button
+                type="button"
+                onClick={() => setShowDeleteModal(false)}
+                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-gray-700"
+              >
+                {orgToDelete.currentUserCount > 0 ? 'Entendido' : 'Cancelar'}
+              </button>
+              {orgToDelete.currentUserCount === 0 && (
+                <button
+                  type="button"
+                  onClick={handleDeleteOrganization}
+                  className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 flex items-center justify-center"
+                >
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  Eliminar
+                </button>
+              )}
+            </div>
           </div>
         </div>
       )}

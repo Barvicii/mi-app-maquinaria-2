@@ -7,7 +7,7 @@ export default function RootLayout({ children }) {
   return (
     <html lang="en">
       <body>
-        <SessionProvider refetchInterval={0}>
+        <SessionProvider refetchInterval={300} refetchOnWindowFocus={true}>
           {children}
         </SessionProvider>
       </body>

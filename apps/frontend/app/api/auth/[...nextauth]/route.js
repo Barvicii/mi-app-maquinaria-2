@@ -16,12 +16,16 @@ export const authOptions = {
   },
   cookies: {
     sessionToken: {
-      name: process.env.NODE_ENV === 'production' ? '__Secure-next-auth.session-token' : 'next-auth.session-token',
+      name: process.env.NODE_ENV === 'production' 
+        ? '__Secure-next-auth.session-token' 
+        : 'next-auth.session-token',
       options: {
         httpOnly: true,
         sameSite: 'lax',
         path: '/',
-        secure: process.env.NODE_ENV === 'production'
+        // Solo requerir HTTPS en producción REAL (no localhost)
+        secure: process.env.NODE_ENV === 'production' && 
+                !process.env.NEXTAUTH_URL?.includes('localhost')
       }
     }
   },
@@ -142,12 +146,20 @@ export const authOptions = {
         session.user.organizationSuspendedAt = token.organizationSuspendedAt;
       }
       return session;
+    },
+    async redirect({ url, baseUrl }) {
+      // Allows relative callback URLs
+      if (url.startsWith("/")) return `${baseUrl}${url}`;
+      // Allows callback URLs on the same origin
+      else if (new URL(url).origin === baseUrl) return url;
+      return baseUrl;
     }
   },
   pages: {
     signIn: '/login',
     error: '/login'
-  }
+  },
+  debug: process.env.NODE_ENV === 'development'
 };
 
 const handler = NextAuth(authOptions);

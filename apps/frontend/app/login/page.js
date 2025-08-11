@@ -48,29 +48,46 @@ function LoginForm() {
       setLoading(true);
       setError('');
       
+      console.log('[LOGIN] Attempting login for:', formData.email);
+      
       const result = await signIn('credentials', {
         redirect: false,
         email: formData.email,
         password: formData.password,
+        callbackUrl: '/'
       });
       
-      if (result.error) {
+      console.log('[LOGIN] SignIn result:', result);
+      
+      if (result?.error) {
+        console.log('[LOGIN] Error:', result.error);
         setError('Invalid credentials. Please try again.');
         return;
       }
       
-      // Manejar "Remember me" - solo guardar email si el login fue exitoso
-      if (rememberMe) {
-        cookieUtils.saveRememberedEmail(formData.email);
-      } else {
-        cookieUtils.clearRememberedCredentials();
+      if (result?.ok) {
+        console.log('[LOGIN] Login successful, redirecting...');
+        
+        // Manejar "Remember me" - solo guardar email si el login fue exitoso
+        if (rememberMe) {
+          cookieUtils.saveRememberedEmail(formData.email);
+        } else {
+          cookieUtils.clearRememberedCredentials();
+        }
+        
+        // Log successful login for security audit
+        console.log(`[Auth] User login: ${formData.email}, Remember me: ${rememberMe}`);
+        
+        // Usar window.location.replace para forzar la redirección
+        console.log('[LOGIN] Forcing redirect with window.location.replace');
+        window.location.replace('/');
+        return;
       }
       
-      // Log successful login for security audit
-      console.log(`[Auth] User login: ${formData.email}, Remember me: ${rememberMe}`);
+      // If we get here, something unexpected happened
+      console.log('[LOGIN] Unexpected result:', result);
+      setError('Login failed. Please try again.');
       
-      // Successful login, redirect to machines registry
-      router.push('/machinesregistry');
     } catch (err) {
       console.error('Error submitting form:', err);
       setError('Server error. Please try again later.');
