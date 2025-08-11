@@ -1,0 +1,459 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: #f3f4f6;
+  --foreground: #171717;
+  --primary: #4f46e5;
+  --secondary: #6b7280;
+}
+
+/* Reset y configuración base */
+html,
+body {
+  padding: 0;
+  margin: 0;
+  height: 100vh;
+  width: 100vw;
+  overflow-x: hidden;
+  background-color: var(--background);
+  @apply flex flex-col min-h-screen;
+  @apply h-full m-0 p-0;
+}
+
+html, body {
+  padding: 0;
+  margin: 0;
+  overflow-x: hidden;
+  width: 100%;
+  height: 100%;
+}
+
+.flex.justify-center.mb-6 {
+  display: none;
+}
+
+#__next {
+  height: 100vh;
+  width: 100vw;
+  display: flex;
+  flex-direction: column;
+  background-color: var(--background);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+/* Layout principal */
+.full-screen {
+  @apply min-h-screen w-full;
+}
+
+.main-container {
+  @apply flex flex-col min-h-screen w-full;
+  background-color: var(--background);
+}
+
+.content-wrapper {
+  @apply flex-grow p-0 w-full max-w-full;
+}
+
+/* Layout principal con sidebar */
+.min-h-screen {
+  min-height: 100vh;
+}
+
+.flex-1 {
+  flex: 1 1 0%;
+}
+
+/* Estilos específicos para Sidebar */
+@media (max-width: 768px) {
+  .md\:block {
+    display: none !important;
+  }
+}
+
+@media (min-width: 768px) {
+  .md\:block {
+    display: block !important;
+  }
+}
+
+/* Asegurar que el contenido principal tiene el espacio correcto */
+main.flex-1 {
+  padding: 1rem;
+}
+
+/* Panel y contenido */
+.panel {
+  @apply bg-white shadow-lg border-0 w-full;
+}
+
+.section-header {
+  @apply flex items-center justify-between border-b border-gray-200 p-6;
+}
+
+.content-area {
+  @apply p-6 w-full;
+}
+
+/* Contenedor principal */
+.container-layout {
+  @apply w-full mx-auto px-0;
+  max-width: 100% !important;
+}
+
+.container {
+  width: 100%;
+  max-width: 100% !important;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+}
+
+/* Media queries para diferentes tamaños de pantalla */
+@media screen and (min-width: 1920px) {
+  .container-layout {
+    @apply w-full;
+    max-width: 100% !important;
+  }
+  
+  .content-wrapper {
+    @apply px-8;
+  }
+}
+
+@media screen and (min-width: 2560px) {
+  .container-layout {
+    @apply w-full;
+    max-width: 100% !important;
+  }
+  
+  .content-wrapper {
+    @apply px-12;
+  }
+}
+
+/* Ajustes responsivos */
+@media screen and (max-width: 1280px) {
+  .navigation-container {
+    @apply space-x-4;
+  }
+
+  .nav-button {
+    @apply px-3 py-2;
+  }
+  
+  .content-wrapper {
+    @apply px-4;
+  }
+}
+
+@media screen and (max-width: 1024px) {
+  .app-header {
+    @apply px-4;
+  }
+
+  .main-content {
+    @apply px-4;
+  }
+}
+
+/* Estilos para el contenedor del contenido */
+.content-container {
+  @apply w-full max-w-full mx-auto;
+  background-color: var(--background);
+  @apply flex-grow;
+}
+
+/* Estilos para el área de trabajo */
+.workspace {
+  @apply w-full h-full;
+  background-color: var(--background);
+}
+
+/* Asegurar que los paneles ocupen todo el ancho */
+.panel-container {
+  @apply w-full mx-auto;
+  max-width: 100% !important;
+}
+
+/* Estilos para las tarjetas dentro del contenido */
+.content-card {
+  @apply bg-white shadow-lg w-full;
+  margin: 0;
+  border-radius: 0;
+}
+
+/* Asegurar que los bordes estén alineados */
+.edge-to-edge {
+  @apply w-full mx-0 px-0;
+  max-width: 100vw;
+}
+
+/* Color de fondo para los espacios vacíos */
+.bg-fill {
+  background-color: var(--background);
+}
+
+/* Add these styles if they don't exist */
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+}
+
+.modal-content {
+    background: white;
+    padding: 2rem;
+    border-radius: 0.5rem;
+    width: 90%;
+    max-width: 600px;
+    max-height: 90vh;
+    overflow-y: auto;
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+
+.close-button {
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    cursor: pointer;
+}
+
+.details-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    gap: 1rem;
+}
+
+.detail-item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.detail-item label {
+    font-weight: bold;
+    color: #666;
+}
+
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .print-container,
+  .print-container * {
+    visibility: visible;
+  }
+  .print-container {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+  }
+}
+
+.bg-beige {
+  background-color: #F5F5DC;
+}
+
+/* Navigation styles */
+.navigation-container {
+  @apply flex items-center space-x-2 mr-4;
+}
+
+.nav-button {
+  @apply flex items-center space-x-2 px-4 py-2 rounded-md transition-colors
+         text-sm font-medium focus:outline-none;
+}
+
+.nav-icon {
+  @apply w-4 h-4;
+}
+
+.nav-button-active {
+  @apply bg-white text-blue-600;
+}
+
+.nav-button-inactive {
+  @apply text-white hover:bg-blue-500;
+}
+
+/* User Menu Dropdown Styles */
+.user-menu-dropdown {
+  @apply absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1
+         ring-1 ring-black ring-opacity-5 focus:outline-none;
+  animation: fadeIn 0.2s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Add header container styles */
+.header-container {
+  @apply flex justify-between items-center w-full px-4;
+}
+
+.nav-and-user-container {
+  @apply flex items-center space-x-4; /* Added space between nav and user menu */
+}
+
+/* Update UserMenu styles */
+.user-avatar {
+  @apply w-8 h-8 rounded-full bg-blue-700 text-white 
+         flex items-center justify-center text-sm font-semibold
+         transition-transform hover:scale-105;
+}
+
+.user-menu-container {
+  @apply relative z-50;
+}
+
+.user-menu-dropdown {
+  @apply absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1
+         ring-1 ring-black ring-opacity-5 focus:outline-none;
+  animation: fadeIn 0.2s ease-out;
+}
+
+/* Añadir estos estilos para controlar la posición del footer */
+body {
+  @apply flex flex-col min-h-screen;
+}
+
+main {
+  @apply flex-grow flex flex-col;
+}
+
+.main-footer {
+  @apply mt-auto; /* Esto empuja el footer al final de la página */
+  @apply w-full mt-auto bg-gray-50 py-6 border-t border-gray-200;
+}
+
+.page-container {
+  @apply flex flex-col min-h-screen;
+}
+
+/* Añadir después de las reglas existentes del main-content */
+
+.main-content {
+  @apply px-8 py-6 flex-grow bg-gray-50;
+  min-height: calc(100vh - 64px - 80px); /* Restar altura del header y footer */
+  width: 100%;
+  overflow-x: hidden;
+  @apply flex-grow flex flex-col bg-gray-50 px-8 py-6;
+  min-height: 100%; /* Ocupa todo el alto disponible */
+  width: 100%;
+}
+
+.main-content {
+  padding: 0 !important;
+  margin: 0 !important;
+  width: 100% !important;
+}
+
+/* Asegurar que el contenido se muestra correctamente en dispositivos móviles */
+@media (max-width: 768px) {
+  .main-content {
+    @apply px-4 py-4;
+  }
+}
+
+.machinary-container {
+  @apply flex-grow;
+}
+
+.machinary-container {
+  padding: 1rem;
+  width: 100%;
+  margin: 0;
+}
+
+.page-layout {
+  padding: 0;
+  margin: 0;
+  width: 100%;
+}
+
+/* Añadir esto a tus estilos globales */
+
+/* Estilo para el menú desplegable de Admin */
+.admin-dropdown {
+  @apply absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg py-2 z-50 
+         transform transition-transform origin-top-right;
+  animation: fadeIn 0.2s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Ajuste para el botón admin activo */
+.nav-button-active-admin {
+  @apply bg-blue-700 text-white;
+}
+
+/* Estilos para los elementos del menú admin */
+.admin-menu-item {
+  @apply flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 w-full text-left;
+}
+
+.admin-menu-item-active {
+  @apply bg-gray-50;
+}
+
+/* Añadir estas reglas al final del archivo globals.css */
+
+/* Aseguramos que el contenedor principal ocupa al menos la altura completa de la ventana */
+.min-h-screen {
+  min-height: 100vh;
+}
+
+/* Aseguramos que las tablas tienen suficiente espacio para 10 filas */
+.data-table tbody {
+  min-height: calc(10 * 3.5rem); /* altura aproximada de 10 filas */
+}
+
+/* Ajustar el padding y márgenes para evitar scroll innecesario */
+.machinary-container {
+  padding: 1rem;
+  margin-bottom: 0;
+}
+
+/* El footer aparecerá naturalmente al final del contenido */
+footer {
+  margin-top: auto; /* Esto empuja el footer al final cuando hay poco contenido */
+}
+
