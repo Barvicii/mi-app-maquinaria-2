@@ -51,29 +51,20 @@ export async function GET(request, { params }) {
         { status: 404 }
       );
     }
-      
-    // Organization-level security check (super admins can view users from any organization)
-    if (session.user.role !== 'SUPER_ADMIN' && user.company !== session.user.company) {
-      return NextResponse.json(
-        { error: 'Not authorized to view this user' },
-        { status: 403 }
-      );
-    }
     
-    return NextResponse.json(user);
+    return NextResponse.json({ user });
   } catch (error) {
     console.error('GET user error:', error);
     return NextResponse.json(
-      { error: 'Error loading user', details: error.message },
+      { error: 'Error retrieving user', details: error.message },
       { status: 500 }
     );
   }
 }
 
-// Delete a user
+// Delete a user by ID
 export async function DELETE(request, { params }) {
   try {
-    // Check authentication
     const session = await getServerSession(authOptions);
     
     if (!session) {
@@ -171,7 +162,7 @@ export async function PUT(request, { params }) {
     }
     
     await dbConnect();
-    const { id } = await params;
+    const { id } = params;
     const updateData = await request.json();
     
     // Find the user first to verify organization

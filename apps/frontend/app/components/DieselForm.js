@@ -25,26 +25,6 @@ const DieselForm = ({ tankId, publicMode = false }) => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
 
-  // Fetch tank data and machines when component loads
-  useEffect(() => {
-    if (tankId) {
-      fetchTankData();
-    }
-  }, [tankId, fetchTankData]);
-
-  // Fetch machines when tankId is available in formData
-  useEffect(() => {
-    if (formData.tankId) {
-      fetchMachines();
-    }
-  }, [formData.tankId, fetchMachines]);
-
-  // Debug log for machines
-  useEffect(() => {
-    console.log('DieselForm - Machines state updated:', machines);
-    console.log('DieselForm - Number of machines:', machines.length);
-  }, [machines]);
-
   const fetchTankData = useCallback(async () => {
     try {
       // In public mode, we need to get tank info from a public endpoint
@@ -130,6 +110,26 @@ const DieselForm = ({ tankId, publicMode = false }) => {
       setError('Failed to load machines');
     }
   }, [formData.tankId, publicMode]);
+
+  // Fetch tank data and machines when component loads
+  useEffect(() => {
+    if (tankId) {
+      fetchTankData();
+    }
+  }, [tankId, fetchTankData]);
+
+  // Fetch machines when tankId is available in formData
+  useEffect(() => {
+    if (formData.tankId) {
+      fetchMachines();
+    }
+  }, [formData.tankId, fetchMachines]);
+
+  // Debug log for machines
+  useEffect(() => {
+    console.log('DieselForm - Machines state updated:', machines);
+    console.log('DieselForm - Number of machines:', machines.length);
+  }, [machines]);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;

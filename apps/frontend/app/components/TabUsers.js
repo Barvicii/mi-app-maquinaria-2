@@ -69,7 +69,7 @@ const TabUsers = () => {
       setUsers(await res.json());
       
       // Update user limit info for non-super admins
-      if (!isSuperAdmin && session?.user?.organizationId) {
+      if (!isSuperAdmin && (session?.user?.organizationId || session?.user?.organization)) {
         await checkUserLimit();
       }
     } catch (e) {
@@ -77,7 +77,7 @@ const TabUsers = () => {
     } finally {
       setLoading(false);
     }
-  }, [isSuperAdmin, session?.user?.organizationId, checkUserLimit]);
+  }, [isSuperAdmin, session?.user?.organizationId, session?.user?.organization, checkUserLimit]);
 
   useEffect(() => {
     fetchUsers();
@@ -269,7 +269,7 @@ const TabUsers = () => {
       role: user.role || 'USER',
       password: '',
       confirmPassword: '',
-      workplaceName: user.workplaceName || ''
+      workplaceName: user.workplace || ''
     });
     setError(null);
     setSuccess(null);
@@ -330,7 +330,9 @@ const TabUsers = () => {
         setTimeout(() => setSuccess(null), 7000);
         
         fetchUsers(); // Refresh user list
-        checkUserLimit(); // Update user limit counter
+        if (!isSuperAdmin) {
+          checkUserLimit(); // Update user limit counter
+        }
         return;
       }
       
@@ -415,7 +417,9 @@ const TabUsers = () => {
       setTimeout(() => setSuccess(null), 5000);
       
       fetchUsers(); // Refresh user list
-      checkUserLimit(); // Update user limit counter
+      if (!isSuperAdmin) {
+        checkUserLimit(); // Update user limit counter
+      }
     } catch (error) {
       console.error('Error saving user:', error);
       setError(error.message || 'Failed to save user');
@@ -682,7 +686,7 @@ const TabUsers = () => {
                     {user.role || 'USER'}
                   </span>
                 </td><td className="px-6 py-4 whitespace-nowrap">
-                  <div className="text-sm text-gray-500">{user.workplaceName || 'N/A'}</div>
+                  <div className="text-sm text-gray-500">{user.workplace || 'N/A'}</div>
                 </td><td className="px-6 py-4 whitespace-nowrap">
                   <div className="text-sm text-gray-500">{user.company || user.organization || 'N/A'}</div>
                 </td><td className="px-6 py-4 whitespace-nowrap">

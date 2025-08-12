@@ -5,12 +5,12 @@ import { ObjectId } from 'mongodb';
 
 export async function GET(request, { params }) {
   try {
-    // Asegurarse de que params está disponible y obtener id de manera segura
-    if (!params) {
-      return NextResponse.json({ error: "Invalid request: params is undefined" }, { status: 400 });
-    }
+    // Obtener id de manera segura con await params
+    const { id } = await params;
     
-    const id = params.id;
+    if (!id) {
+      return NextResponse.json({ error: "Invalid request: id is undefined" }, { status: 400 });
+    }
     
     console.log(`Finding operators for machine ID: ${id}`);
     

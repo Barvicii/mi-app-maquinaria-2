@@ -107,14 +107,18 @@ export const POST = withPermission(PERMISSIONS.USER_CREATE)(async (request) => {
       email: data.email.toLowerCase().trim(),
       password: hashedPassword,
       company: data.company || session.user.company,
-      workplaceName: data.workplaceName,
+      workplace: data.workplaceName, // Guardar en el campo workplace
       role: data.role || 'USER',
       credentialId: session.user.credentialId,
       organizationId: session.user.organizationId,
       permissions: data.permissions || ['read:machines'],
       active: true,
       createdAt: new Date(),
-      createdBy: session.user.id
+      createdBy: session.user.id,
+      // Initialize suspension fields
+      organizationSuspended: false,
+      organizationSuspendedAt: null,
+      organizationSuspendedBy: null
     };
     
     // Crear usuario en la base de datos

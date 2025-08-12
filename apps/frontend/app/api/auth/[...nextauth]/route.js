@@ -72,6 +72,20 @@ export const authOptions = {
             
             console.log("✅ [AUTH] Direct password matched successfully");
             
+            // Verificar si el usuario o su organización están suspendidos
+            // Para usuarios más antiguos usar el campo 'active', para nuevos usar 'status'
+            const userIsActive = user.status ? user.status === 'active' : user.active !== false;
+            const isSuspended = user.organizationSuspended === true || !userIsActive;
+            
+            if (isSuspended) {
+              console.log("❌ [AUTH] User or organization is suspended");
+              console.log("🔍 [AUTH] organizationSuspended:", user.organizationSuspended);
+              console.log("🔍 [AUTH] status:", user.status);
+              console.log("🔍 [AUTH] active (legacy):", user.active);
+              console.log("🔍 [AUTH] userIsActive:", userIsActive);
+              return null; // Retornar null para que NextAuth maneje como credenciales inválidas
+            }
+            
             // Get organization name if user has organizationId but no company
             let companyName = user.company;
             if (!companyName && user.organizationId) {
@@ -103,7 +117,7 @@ export const authOptions = {
               role: user.role || 'user',
               company: companyName || '',
               organization: companyName || '', // Agregar organization para consistencia
-              workplace: user.workplaceName || '',
+              workplace: user.workplace || '',
               organizationId: user.organizationId?.toString() || null,
               organizationSuspended: user.organizationSuspended || false,
               organizationSuspendedAt: user.organizationSuspendedAt || null

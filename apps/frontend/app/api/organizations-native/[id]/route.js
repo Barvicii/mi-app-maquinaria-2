@@ -23,7 +23,7 @@ export async function GET(request, { params }) {
 
     await dbConnect();
     
-    const organizationId = params.id;
+    const { id: organizationId } = await params;
     
     const organization = await Organization.findById(organizationId)
       .populate('adminId', 'name email')
@@ -89,7 +89,7 @@ export async function PUT(request, { params }) {
 
     await dbConnect();
     
-    const organizationId = params.id;
+    const { id: organizationId } = await params;
     
     // Verificar que la organización existe
     const existingOrg = await Organization.findById(organizationId);
@@ -182,7 +182,7 @@ export async function DELETE(request, { params }) {
 
     await dbConnect();
     
-    const organizationId = params.id;
+    const { id: organizationId } = await params;
     
     // Verificar que la organización existe
     const existingOrg = await Organization.findById(organizationId);
@@ -211,6 +211,96 @@ export async function DELETE(request, { params }) {
 
   } catch (error) {
     console.error('❌ Error deleting organization:', error);
+    return NextResponse.json(
+      { error: 'Internal server error', details: error.message },
+      { status: 500 }
+    );
+  }
+}
+
+// PATCH - Suspender/Activar organización
+export async function PATCH(request, { params }) {
+  try {
+    console.log('🔄 Organization PATCH - Suspend/Activate request received');
+    
+    const session = await getServerSession(authOptions);
+    
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // Solo SUPER_ADMIN puede suspender/activar organizaciones
+    if (session.user.role !== 'SUPER_ADMIN') {
+      return NextResponse.json({ error: 'Access denied' }, { status: 403 });
+    }
+
+    const { active, action } = await request.json();
+    
+    if (typeof active !== 'boolean') {
+      return NextResponse.json(
+        { error: 'Active parameter must be a boolean' },
+        { status: 400 }
+      );
+    }
+
+    await dbConnect();
+    
+    const { id: organizationId } = await params;
+    
+    // Verificar que la organización existe
+    const existingOrg = await Organization.findById(organizationId);
+    if (!existingOrg) {
+      return NextResponse.json({ error: 'Organization not found' }, { status: 404 });
+    }
+
+    // Actualizar la organización
+    const updatedOrg = await Organization.findByIdAndUpdate(
+      organizationId,
+      { 
+        active,
+        updatedAt: new Date()
+      },
+      { new: true }
+    ).populate('adminId', 'name email')
+     .populate('createdBy', 'name email');
+
+    // Actualizar todos los usuarios de la organización
+    const updateResult = await User.updateMany(
+      { organizationId },
+      {
+        organizationSuspended: !active,
+        organizationSuspendedAt: !active ? new Date() : null,
+        organizationSuspendedBy: !active ? session.user.id : null,
+        active: active, // Desactivar/activar usuarios junto con la organización
+        updatedAt: new Date()
+      }
+    );
+
+    // Si se está suspendiendo, obtener emails de usuarios afectados para invalidar sesiones
+    let affectedUsers = [];
+    if (!active) {
+      affectedUsers = await User.find({ organizationId }, 'email _id name').lean();
+    }
+
+    console.log(`✅ Organization ${active ? 'activated' : 'suspended'} successfully`);
+    console.log(`📊 ${updateResult.modifiedCount} users affected`);
+
+    return NextResponse.json({
+      success: true,
+      organization: updatedOrg,
+      usersAffected: updateResult.modifiedCount,
+      affectedUsers: affectedUsers.map(user => ({
+        id: user._id,
+        email: user.email,
+        name: user.name
+      })),
+      message: `Organization ${active ? 'activated' : 'suspended'} successfully`,
+      actionPerformedBy: session.user.name,
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error('❌ Error suspending/activating organization:', error);
     return NextResponse.json(
       { error: 'Internal server error', details: error.message },
       { status: 500 }

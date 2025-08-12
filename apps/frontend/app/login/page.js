@@ -25,6 +25,11 @@ function LoginForm() {
       setShowRegisteredMessage(true);
     }
 
+    // Mostrar mensaje si la cuenta fue suspendida
+    if (searchParams.get('suspended') === 'true') {
+      setError('Account Suspended: Your organization account has been suspended. Please contact support for assistance.');
+    }
+
     // Cargar email guardado si existe "Remember me"
     const remembered = cookieUtils.getRememberedEmail();
     if (remembered.email) {
@@ -50,6 +55,24 @@ function LoginForm() {
       
       console.log('[LOGIN] Attempting login for:', formData.email);
       
+      // Primero verificar si la cuenta está suspendida
+      const suspensionCheck = await fetch('/api/auth/check-suspension', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: formData.email })
+      });
+      
+      if (suspensionCheck.ok) {
+        const suspensionData = await suspensionCheck.json();
+        
+        if (suspensionData.suspended) {
+          console.log('[LOGIN] Account is suspended');
+          setError('Account Suspended: Your organization account has been suspended. Please contact support for assistance.');
+          setLoading(false);
+          return;
+        }
+      }
+      
       const result = await signIn('credentials', {
         redirect: false,
         email: formData.email,
@@ -61,7 +84,13 @@ function LoginForm() {
       
       if (result?.error) {
         console.log('[LOGIN] Error:', result.error);
-        setError('Invalid credentials. Please try again.');
+        
+        // Verificar si es un error de cuenta suspendida
+        if (result.error.includes('ACCOUNT_SUSPENDED')) {
+          setError('Account Suspended: Your organization account has been suspended. Please contact support for assistance.');
+        } else {
+          setError('Invalid credentials. Please try again.');
+        }
         return;
       }
       

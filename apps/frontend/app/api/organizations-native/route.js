@@ -80,10 +80,17 @@ export async function GET(request) {
         const userCount = await User.countDocuments({ organizationId: org._id });
         const machineCount = await Machine.countDocuments({ organizationId: org._id });
         
+        // Verificar si la organización está suspendida
+        const suspendedUser = await User.findOne({ 
+          organizationId: org._id,
+          organizationSuspended: true 
+        });
+        
         return {
           ...org.toObject(),
           currentUserCount: userCount,
-          machinesCount: machineCount
+          machinesCount: machineCount,
+          suspended: !!suspendedUser
         };
       })
     );
@@ -120,7 +127,7 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Acceso denegado' }, { status: 403 });
     }
 
-    const { name, description, maxUsers, adminEmail, adminName } = await request.json();
+    const { name, description, maxUsers, adminEmail, adminName, isMultiUser } = await request.json();
 
     if (!name || !adminEmail || !adminName) {
       return NextResponse.json(
@@ -140,36 +147,66 @@ export async function POST(request) {
       );
     }
 
-    // Crear el usuario admin de la organización
-    const adminUser = new User({
+    // Verificar que el email no esté ya registrado
+    const existingUser = await User.findOne({ email: adminEmail });
+    if (existingUser) {
+      return NextResponse.json(
+        { error: 'Ya existe un usuario con ese email' },
+        { status: 400 }
+      );
+    }
+
+    // Determinar el rol del usuario basado en el tipo de organización
+    const userRole = isMultiUser ? 'ADMIN' : 'USER';
+    const finalMaxUsers = isMultiUser ? (maxUsers || 10) : 1;
+    const finalIsMultiUser = isMultiUser && finalMaxUsers > 1; // Asegurar coherencia
+
+    // Para single user, el workplace es el mismo que la organización
+    const userWorkplace = finalIsMultiUser ? null : name;
+
+    // Crear el usuario para la organización
+    const newUser = new User({
       name: adminName,
       email: adminEmail,
       password: 'temp123', // Password temporal que debe cambiar
-      role: 'ADMIN',
-      organizationId: null // Se asignará después de crear la organización
+      role: userRole,
+      organizationId: null, // Se asignará después de crear la organización
+      organization: name, // Nombre de la organización
+      workplace: userWorkplace, // Para single user = nombre org, para multi-user = null
+      passwordChangeRequired: true, // Forzar cambio de contraseña en primer login
+      temporaryPassword: true
     });
 
-    const savedAdmin = await adminUser.save();
+    const savedUser = await newUser.save();
 
     // Crear la organización
     const organization = new Organization({
       name,
       description: description || '',
-      maxUsers: maxUsers || 10,
-      adminId: savedAdmin._id,
-      createdBy: session.user.id
+      maxUsers: finalMaxUsers,
+      adminId: savedUser._id,
+      createdBy: session.user.id,
+      isMultiUser: finalIsMultiUser // Usar el valor corregido
     });
 
     const savedOrganization = await organization.save();
 
-    // Actualizar el admin con la referencia a la organización
-    savedAdmin.organizationId = savedOrganization._id;
-    await savedAdmin.save();
+    // Actualizar el usuario con la referencia a la organización
+    savedUser.organizationId = savedOrganization._id;
+    await savedUser.save();
 
     return NextResponse.json({
       success: true,
       organization: savedOrganization,
-      message: 'Organización creada exitosamente'
+      user: {
+        id: savedUser._id,
+        name: savedUser.name,
+        email: savedUser.email,
+        role: savedUser.role,
+        organization: savedUser.organization,
+        workplace: savedUser.workplace
+      },
+      message: `Organization created successfully. ${userRole === 'ADMIN' ? 'Admin user' : 'User'} created with temporary password. ${finalIsMultiUser ? 'Multi-user organization' : 'Single-user organization with workplace set to organization name'}.`
     });
 
   } catch (error) {

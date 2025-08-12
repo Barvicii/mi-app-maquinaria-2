@@ -104,7 +104,7 @@ export async function POST(request) {
       name,
       email,
       role,
-      workplaceName,
+      workplace: workplaceName, // Correct field name
       password: hashedPassword,
       temporaryPassword: true,
       passwordChangeRequired: true,
@@ -116,7 +116,11 @@ export async function POST(request) {
       company: session.user.company,
       organizationId: session.user.organizationId,
       credentialId: session.user.credentialId,
-      createdBy: session.user.id
+      createdBy: session.user.id,
+      // Initialize suspension fields
+      organizationSuspended: false,
+      organizationSuspendedAt: null,
+      organizationSuspendedBy: null
     };
 
     // Insert user into database

@@ -12,10 +12,22 @@ export const useUserLimit = () => {
       setLoading(true);
       setError(null);
 
-      // Use current user's organization if not provided
-      const orgId = organizationId || session?.user?.organizationId;
+      // Use current user's organization if not provided - check both organizationId and organization fields
+      const orgId = organizationId || session?.user?.organizationId || session?.user?.organization;
       
       console.log('🔍 Checking user limit for organization:', orgId);
+      console.log('🔍 Session user role:', session?.user?.role);
+      console.log('🔍 Available org fields:', {
+        organizationId: session?.user?.organizationId,
+        organization: session?.user?.organization,
+        company: session?.user?.company
+      });
+      
+      // Skip for super admins who don't have organizationId
+      if (session?.user?.role === 'SUPER_ADMIN' && !orgId) {
+        console.log('🔹 Skipping user limit check for SUPER_ADMIN without organizationId');
+        return null;
+      }
       
       if (!orgId) {
         throw new Error('Organization ID not found');
@@ -41,20 +53,22 @@ export const useUserLimit = () => {
     } finally {
       setLoading(false);
     }
-  }, [session?.user?.organizationId]);
+  }, [session?.user?.organizationId, session?.user?.organization]);
 
   // Auto-check limit when session changes
   useEffect(() => {
     console.log('🔄 useUserLimit effect triggered', {
       organizationId: session?.user?.organizationId,
+      organization: session?.user?.organization,
       role: session?.user?.role,
-      shouldFetch: session?.user?.organizationId && (session?.user?.role === 'ADMIN' || session?.user?.role === 'USER')
+      shouldFetch: (session?.user?.organizationId || session?.user?.organization) && (session?.user?.role === 'ADMIN' || session?.user?.role === 'USER')
     });
     
-    if (session?.user?.organizationId && (session?.user?.role === 'ADMIN' || session?.user?.role === 'USER')) {
+    // Only check for non-super admins with organizationId or organization
+    if ((session?.user?.organizationId || session?.user?.organization) && (session?.user?.role === 'ADMIN' || session?.user?.role === 'USER')) {
       checkUserLimit();
     }
-  }, [session?.user?.organizationId, session?.user?.role, checkUserLimit]);
+  }, [session?.user?.organizationId, session?.user?.organization, session?.user?.role, checkUserLimit]);
 
   return {
     limitInfo,

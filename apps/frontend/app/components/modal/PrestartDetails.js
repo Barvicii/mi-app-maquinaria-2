@@ -15,11 +15,66 @@ const PrestartDetails = ({ data }) => {
         setLoading(true);
         console.log(`Fetching template with ID: ${data.templateId}`);
         
-        const response = await fetch(`/api/prestart/templates/${data.templateId}`);
+        // Build URL with additional context parameters
+        let url = `/api/prestart/templates/${data.templateId}`;
+        const params = new URLSearchParams();
+        
+        // Add machineId if available for better access control
+        if (data.machineId) {
+          params.append('machineId', data.machineId);
+        }
+        
+        // Try public access first if we have machine context
+        if (data.machineId) {
+          params.append('public', 'true');
+        }
+        
+        if (params.toString()) {
+          url += `?${params.toString()}`;
+        }
+        
+        console.log(`Requesting template from: ${url}`);
+        const response = await fetch(url);
         
         if (!response.ok) {
           console.error(`Error fetching template: ${response.status}`);
-          setError('Could not load template');
+          console.error('Response details:', {
+            status: response.status,
+            statusText: response.statusText,
+            url: url
+          });
+          
+          // Try to get error details
+          try {
+            const errorData = await response.json();
+            console.error('Error response body:', errorData);
+            setError(`Could not load template: ${errorData.error || response.statusText}`);
+          } catch {
+            setError(`Could not load template (${response.status})`);
+          }
+          
+          // If public access failed and we have auth, try authenticated access
+          if (response.status === 403 && params.has('public')) {
+            console.log('Public access failed, trying authenticated access...');
+            const authUrl = `/api/prestart/templates/${data.templateId}`;
+            const authResponse = await fetch(authUrl);
+            
+            if (authResponse.ok) {
+              const templateData = await authResponse.json();
+              console.log('Template loaded via authenticated access:', templateData);
+              setTemplate(templateData);
+              return;
+            } else {
+              console.error(`Authenticated access also failed: ${authResponse.status}`);
+              try {
+                const authErrorData = await authResponse.json();
+                console.error('Auth error response body:', authErrorData);
+              } catch {
+                console.error('Could not parse auth error response');
+              }
+            }
+          }
+          
           return;
         }
         

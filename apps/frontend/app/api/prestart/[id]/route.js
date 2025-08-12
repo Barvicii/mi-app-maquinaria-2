@@ -62,7 +62,7 @@ export async function PUT(request, { params }) {
     }
     
     const userId = session.user.id;
-    const { id } = params;
+    const { id } = await params;
     
     if (!id || !ObjectId.isValid(id)) {
       return NextResponse.json({ error: "Invalid prestart ID" }, { status: 400 });
@@ -107,7 +107,8 @@ export async function PUT(request, { params }) {
 // DELETE - Eliminar un prestart por ID
 export async function DELETE(request, { params }) {
   try {
-    console.log(`[API] DELETE /api/prestart/${params.id} - Endpoint llamado`);
+    const { id } = await params;
+    console.log(`[API] DELETE /api/prestart/${id} - Endpoint llamado`);
     
     // Verificar autenticación
     const session = await getServerSession(authOptions);
@@ -126,14 +127,14 @@ export async function DELETE(request, { params }) {
     const isAdmin = session.user.role === 'admin';
     
     // Verificar que el ID existe
-    if (!params.id) {
+    if (!id) {
       console.error('[API] Error: ID no proporcionado');
       return NextResponse.json({ error: "Prestart ID is required" }, { status: 400 });
     }
     
     // Validar que el ID es un ObjectId válido
-    if (!ObjectId.isValid(params.id)) {
-      console.error(`[API] Error: ID inválido ${params.id}`);
+    if (!ObjectId.isValid(id)) {
+      console.error(`[API] Error: ID inválido ${id}`);
       return NextResponse.json({ error: "Invalid prestart ID format" }, { status: 400 });
     }
     
@@ -141,11 +142,11 @@ export async function DELETE(request, { params }) {
     
     // Primero, buscar el prestart para verificar permisos
     const prestart = await db.collection('prestart').findOne({
-      _id: new ObjectId(params.id)
+      _id: new ObjectId(id)
     });
     
     if (!prestart) {
-      console.error(`[API] Error: Prestart con ID ${params.id} no encontrado`);
+      console.error(`[API] Error: Prestart con ID ${id} no encontrado`);
       return NextResponse.json({ error: "Prestart not found" }, { status: 404 });
     }
     
@@ -159,19 +160,19 @@ export async function DELETE(request, { params }) {
     
     // Eliminar el prestart
     const result = await db.collection('prestart').deleteOne({
-      _id: new ObjectId(params.id)
+      _id: new ObjectId(id)
     });
     
     if (result.deletedCount === 0) {
-      console.error(`[API] Error: No se pudo eliminar prestart ${params.id}`);
+      console.error(`[API] Error: No se pudo eliminar prestart ${id}`);
       return NextResponse.json({ error: "Failed to delete prestart" }, { status: 500 });
     }
     
-    console.log(`[API] Prestart ${params.id} eliminado exitosamente`);
+    console.log(`[API] Prestart ${id} eliminado exitosamente`);
     
     return NextResponse.json({ 
       message: "Prestart deleted successfully",
-      id: params.id
+      id: id
     });
   } catch (error) {
     console.error('[API] Error eliminando prestart:', error);

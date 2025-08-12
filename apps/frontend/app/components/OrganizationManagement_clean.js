@@ -11,9 +11,7 @@ import {
   Filter,
   Eye,
   AlertTriangle,
-  CheckCircle,
-  Pause,
-  Play
+  CheckCircle
 } from 'lucide-react';
 
 const OrganizationManagement = () => {
@@ -37,7 +35,7 @@ const OrganizationManagement = () => {
     maxUsers: 10,
     adminName: '',
     adminEmail: '',
-    isMultiUser: true // New option to determine if it will be multi-user
+    isMultiUser: true // Nueva opción para determinar si será multi-usuario
   });
 
   const [editForm, setEditForm] = useState({
@@ -95,7 +93,7 @@ const OrganizationManagement = () => {
       }
     } catch (err) {
       console.error('❌ Connection Error:', err);
-      setError(`Connection error: ${err.message}`);
+      setError(`Error de conexión: ${err.message}`);
     } finally {
       setLoading(false);
     }
@@ -188,35 +186,6 @@ const OrganizationManagement = () => {
     }
   };
 
-  const handleSuspendOrganization = async (org) => {
-    try {
-      const newSuspendedStatus = !org.suspended;
-      const action = newSuspendedStatus ? 'suspend' : 'unsuspend';
-      const reason = newSuspendedStatus ? 'Organization suspended by admin' : 'Organization reactivated by admin';
-      
-      const response = await fetch('/api/organizations/suspend', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          organization: org.name,
-          suspend: newSuspendedStatus,
-          reason: reason,
-          details: `Organization ${action}ed by ${session?.user?.name || session?.user?.email}`
-        })
-      });
-
-      const data = await response.json();
-
-      if (response.ok && data.message) {
-        fetchOrganizations();
-      } else {
-        setError(data.error || `Error ${newSuspendedStatus ? 'suspending' : 'reactivating'} organization`);
-      }
-    } catch (err) {
-      setError('Connection error');
-    }
-  };
-
   const openDeleteModal = (org) => {
     setOrgToDelete(org);
     setShowDeleteModal(true);
@@ -236,8 +205,8 @@ const OrganizationManagement = () => {
     return (
       <div className="p-6 text-center">
         <AlertTriangle className="w-16 h-16 text-red-500 mx-auto mb-4" />
-        <h2 className="text-xl font-semibold text-gray-900 mb-2">Access Denied</h2>
-        <p className="text-gray-600">Only Super Administrators can access this section.</p>
+        <h2 className="text-xl font-semibold text-gray-900 mb-2">Acceso Denegado</h2>
+        <p className="text-gray-600">Solo los Super Administradores pueden acceder a esta sección.</p>
       </div>
     );
   }
@@ -297,20 +266,11 @@ const OrganizationManagement = () => {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredOrganizations.map((org) => (
-            <div key={org._id} className={`bg-white rounded-lg shadow-lg border-2 p-6 ${
-              org.suspended ? 'border-red-300 bg-red-50' : 'border-gray-200'
-            }`}>
+            <div key={org._id} className="bg-white rounded-lg shadow-lg border border-gray-200 p-6">
               <div className="flex justify-between items-start mb-4">
                 <div>
-                  <div className="flex items-center gap-2">
-                    <h3 className="text-lg font-semibold text-gray-900">{org.name}</h3>
-                    {org.suspended && (
-                      <span className="text-xs px-2 py-1 bg-red-500 text-white rounded-full">
-                        SUSPENDED
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-sm text-gray-600 mt-1">{org.description || 'No description'}</p>
+                  <h3 className="text-lg font-semibold text-gray-900">{org.name}</h3>
+                  <p className="text-sm text-gray-600 mt-1">{org.description || 'Sin descripción'}</p>
                 </div>
                 <div className="flex space-x-2">
                   <button
@@ -319,17 +279,6 @@ const OrganizationManagement = () => {
                     title="Edit organization"
                   >
                     <Edit3 className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={() => handleSuspendOrganization(org)}
-                    className={`p-1 rounded ${
-                      org.suspended
-                        ? 'text-green-600 hover:text-green-800'
-                        : 'text-yellow-600 hover:text-yellow-800'
-                    }`}
-                    title={org.suspended ? 'Reactivate organization' : 'Suspend organization'}
-                  >
-                    {org.suspended ? <Play className="w-4 h-4" /> : <Pause className="w-4 h-4" />}
                   </button>
                   <button
                     onClick={() => openDeleteModal(org)}
@@ -375,17 +324,6 @@ const OrganizationManagement = () => {
                       : 'bg-green-100 text-green-800'
                   }`}>
                     {(org.isMultiUser !== false && org.maxUsers !== 1) ? 'Multi-user' : 'Single user'}
-                  </span>
-                </div>
-
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-gray-600">Status:</span>
-                  <span className={`text-xs px-2 py-1 rounded-full ${
-                    org.suspended 
-                      ? 'bg-red-100 text-red-800' 
-                      : 'bg-green-100 text-green-800'
-                  }`}>
-                    {org.suspended ? 'Suspended' : 'Active'}
                   </span>
                 </div>
                 
@@ -591,7 +529,7 @@ const OrganizationManagement = () => {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Description
+                  Descripción
                 </label>
                 <textarea
                   value={editForm.description}
