@@ -40,7 +40,6 @@
     "react-hot-toast": "^2.5.2",
     "react-toastify": "^11.0.5",
     "recharts": "^2.15.3",
-    "shared": "file:../../packages/shared",
     "zod": "^3.25.69"
   },
   "devDependencies": {
