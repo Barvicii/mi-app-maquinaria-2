@@ -18,6 +18,8 @@ import OrganizationManagement from './OrganizationManagement';
 import ClientMetricsDashboard from './ClientMetricsDashboard';
 import DieselConfig from './DieselConfig';
 import TabInvoices from './TabInvoices';
+import TabAuditLog from './TabAuditLog';
+import InvoiceSettings from './InvoiceSettings';
 import '@/styles/layout.css';
 import '@/styles/machinary.css';
 import '@/styles/tables.css';
@@ -231,6 +233,8 @@ const MachinesRegistry = ({ initialTab = 'dashboard', children }) => {
               children || <OrganizationPrestartTemplates suppressNotifications={true} />
             )}
             {activeTab === 'users' && (isAdmin || isSuperAdmin) && <TabUsers suppressNotifications={true} />}
+            {activeTab === 'invoice-settings' && (isAdmin || isSuperAdmin) && <InvoiceSettings suppressNotifications={true} />}
+            {activeTab === 'audit-log' && (isAdmin || isSuperAdmin) && <TabAuditLog />}
           </main>
         </div>
       </div>

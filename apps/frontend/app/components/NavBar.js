@@ -42,8 +42,9 @@ const NavBar = ({ activeTab, onTabChange, isSuperAdmin = false, isAdmin = false 
   
   // Add admin-specific tabs
   if (isAdmin || isSuperAdmin) {
+    settingsTabs.push({ id: 'invoice-settings', name: 'Invoice Settings' });
     settingsTabs.push({ id: 'users', name: 'Users' });
-    // settingsTabs.push({ id: 'admin-reports', name: 'Reportes Organizacionales' }); // Eliminado por solicitud
+    settingsTabs.push({ id: 'audit-log', name: 'Audit Log' });
   }
   
   // Close menus when clicked outside

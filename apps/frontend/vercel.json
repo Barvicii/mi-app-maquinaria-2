@@ -4,6 +4,12 @@
   "buildCommand": "npm run build",
   "outputDirectory": ".next",
   "installCommand": "npm install",
+  "crons": [
+    {
+      "path": "/api/invoices/process-email?secret=${CRON_SECRET}",
+      "schedule": "0 8 * * *"
+    }
+  ],
   "projectSettings": {
     "passwordProtection": null,
     "ssoProtection": null,
@@ -17,6 +23,9 @@
   "functions": {
     "src/app/api/**/*.js": {
       "maxDuration": 30
+    },
+    "app/api/invoices/process-email/route.js": {
+      "maxDuration": 60
     }
   },
   "headers": [

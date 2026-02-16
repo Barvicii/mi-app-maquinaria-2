@@ -4,7 +4,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
   Eye, Trash2, RefreshCw, FileText, Plus, Check, X,
   Filter, DollarSign, Calendar, Search, ChevronLeft, ChevronRight,
-  AlertCircle, CheckCircle, Clock, Upload
+  AlertCircle, CheckCircle, Clock, Upload, MessageCircle, HelpCircle, Mail, Link2
 } from 'lucide-react';
 import '@/styles/tables.css';
 import Notification from './Notification';
@@ -77,6 +77,21 @@ const TabInvoices = ({ maquinas = [], suppressNotifications = false }) => {
   const [summary, setSummary] = useState(null);
   const [showSummary, setShowSummary] = useState(false);
 
+  // WhatsApp inquiry
+  const [showInquiryModal, setShowInquiryModal] = useState(false);
+  const [inquiryInvoice, setInquiryInvoice] = useState(null);
+  const [inquiryMessage, setInquiryMessage] = useState('');
+
+  // Assign machine modal (for unassigned invoices)
+  const [showAssignModal, setShowAssignModal] = useState(false);
+  const [assignInvoice, setAssignInvoice] = useState(null);
+  const [assignMachineId, setAssignMachineId] = useState('');
+  const [isAssigning, setIsAssigning] = useState(false);
+  const [unassignedCount, setUnassignedCount] = useState(0);
+
+  // Support WhatsApp number (NZ format without +)
+  const SUPPORT_WHATSAPP = process.env.NEXT_PUBLIC_SUPPORT_WHATSAPP || '6431234567';
+
   const notify = useCallback((message, type = 'success') => {
     if (suppressNotifications) return;
     setNotificationMessage(message);
@@ -133,6 +148,60 @@ const TabInvoices = ({ maquinas = [], suppressNotifications = false }) => {
       }
     } catch (err) {
       console.error('Failed to load summary:', err);
+    }
+  };
+
+  // ─── Fetch Unassigned Count ───
+  const fetchUnassignedCount = useCallback(async () => {
+    try {
+      const res = await fetch('/api/invoices?status=Unassigned&limit=1', { credentials: 'same-origin' });
+      if (res.ok) {
+        const data = await res.json();
+        setUnassignedCount(data.pagination?.total || 0);
+      }
+    } catch (err) {
+      console.error('Failed to fetch unassigned count:', err);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchUnassignedCount();
+  }, [fetchUnassignedCount]);
+
+  // ─── Assign Machine to Invoice ───
+  const handleAssignMachine = async () => {
+    if (!assignInvoice || !assignMachineId) return;
+
+    try {
+      setIsAssigning(true);
+      const selected = maquinas.find((m) => m._id === assignMachineId);
+
+      const res = await fetch(`/api/invoices/${assignInvoice._id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({
+          machineId: assignMachineId,
+          machineCustomId: selected?.machineId || '',
+          status: 'Pending Review'
+        })
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || 'Failed to assign machine');
+      }
+
+      notify('Machine assigned successfully — invoice moved to Pending Review');
+      setShowAssignModal(false);
+      setAssignInvoice(null);
+      setAssignMachineId('');
+      fetchInvoices(currentPage);
+      fetchUnassignedCount();
+    } catch (err) {
+      notify(err.message, 'error');
+    } finally {
+      setIsAssigning(false);
     }
   };
 
@@ -252,6 +321,31 @@ const TabInvoices = ({ maquinas = [], suppressNotifications = false }) => {
     return '—';
   };
 
+  // ─── WhatsApp Inquiry ───
+  const openInquiryModal = (invoice) => {
+    const machineName = getMachineName(invoice);
+    const defaultMsg = `Hi, I have a question about an invoice in Orchard Services:\n\n` +
+      `📄 Invoice: ${invoice.invoiceId || invoice._id?.toString().slice(-8)}\n` +
+      `📅 Date: ${invoice.date ? new Date(invoice.date).toLocaleDateString('en-NZ') : 'N/A'}\n` +
+      `🏪 Vendor: ${invoice.vendor || 'N/A'}\n` +
+      `💰 Amount: ${invoice.totalAmount || 'N/A'} ${invoice.currency || 'NZD'}\n` +
+      `🚜 Machine: ${machineName}\n\n` +
+      `I need help identifying which machine this invoice belongs to. Can you assist?`;
+    setInquiryInvoice(invoice);
+    setInquiryMessage(defaultMsg);
+    setShowInquiryModal(true);
+  };
+
+  const sendWhatsAppInquiry = () => {
+    const encoded = encodeURIComponent(inquiryMessage);
+    const url = `https://wa.me/${SUPPORT_WHATSAPP}?text=${encoded}`;
+    window.open(url, '_blank');
+    setShowInquiryModal(false);
+    setInquiryInvoice(null);
+    setInquiryMessage('');
+    notify('WhatsApp opened — your inquiry has been sent', 'success');
+  };
+
   const formatDate = (d) => {
     if (!d) return '—';
     return new Date(d).toLocaleDateString('en-NZ', { day: '2-digit', month: 'short', year: 'numeric' });
@@ -321,6 +415,30 @@ const TabInvoices = ({ maquinas = [], suppressNotifications = false }) => {
           </button>
         </div>
       </div>
+
+      {/* Unassigned Invoices Banner */}
+      {unassignedCount > 0 && (
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="bg-amber-100 p-2 rounded-full">
+              <AlertCircle size={20} className="text-amber-600" />
+            </div>
+            <div>
+              <p className="font-semibold text-amber-800">
+                {unassignedCount} invoice{unassignedCount !== 1 ? 's' : ''} need machine assignment
+              </p>
+              <p className="text-sm text-amber-600">These invoices were received by email but couldn&apos;t be matched to a machine automatically.</p>
+            </div>
+          </div>
+          <button
+            onClick={() => setFilters({ ...filters, status: 'Unassigned' })}
+            className="flex items-center gap-1 px-4 py-2 text-sm bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition whitespace-nowrap"
+          >
+            <Link2 size={14} />
+            Review &amp; Assign
+          </button>
+        </div>
+      )}
 
       {/* Filters Bar */}
       {showFilters && (
@@ -494,7 +612,12 @@ const TabInvoices = ({ maquinas = [], suppressNotifications = false }) => {
               {invoices.map((inv) => (
                 <tr key={inv._id} className="border-b hover:bg-gray-50 transition">
                   <td className="px-4 py-3 font-mono text-xs text-gray-500">
-                    {inv.invoiceId || inv._id?.toString().slice(-8)}
+                    <div className="flex items-center gap-1">
+                      {inv.receivedViaEmail && (
+                        <Mail size={12} className="text-blue-500" title="Received via email" />
+                      )}
+                      {inv.invoiceId || inv._id?.toString().slice(-8)}
+                    </div>
                   </td>
                   <td className="px-4 py-3">{formatDate(inv.date)}</td>
                   <td className="px-4 py-3 font-medium">{inv.vendor}</td>
@@ -519,6 +642,22 @@ const TabInvoices = ({ maquinas = [], suppressNotifications = false }) => {
                         title="View details"
                       >
                         <Eye size={16} />
+                      </button>
+                      {inv.status === 'Unassigned' && (
+                        <button
+                          onClick={() => { setAssignInvoice(inv); setAssignMachineId(''); setShowAssignModal(true); }}
+                          className="p-1.5 text-amber-600 hover:bg-amber-50 rounded transition"
+                          title="Assign to machine"
+                        >
+                          <Link2 size={16} />
+                        </button>
+                      )}
+                      <button
+                        onClick={() => openInquiryModal(inv)}
+                        className="p-1.5 text-green-600 hover:bg-green-50 rounded transition"
+                        title="Ask about this invoice via WhatsApp"
+                      >
+                        <MessageCircle size={16} />
                       </button>
                       <button
                         onClick={() => handleDelete(inv._id)}
@@ -808,11 +947,52 @@ const TabInvoices = ({ maquinas = [], suppressNotifications = false }) => {
                 </div>
               )}
 
+              {/* Received via email badge */}
+              {selectedInvoice.receivedViaEmail && (
+                <div className="bg-indigo-50 border border-indigo-200 rounded-lg px-3 py-2 text-sm flex items-center gap-2">
+                  <Mail size={14} className="text-indigo-600" />
+                  <span className="text-indigo-700">Received automatically via email</span>
+                  {selectedInvoice.emailSource?.from && (
+                    <span className="text-indigo-500 ml-auto text-xs">from: {selectedInvoice.emailSource.from}</span>
+                  )}
+                </div>
+              )}
+
+              {/* Parsed machine IDs hint (for unassigned email invoices) */}
+              {selectedInvoice.status === 'Unassigned' && selectedInvoice.parsedMachineIds?.length > 0 && (
+                <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-sm">
+                  <span className="text-amber-700 font-medium">IDs found in email: </span>
+                  <span className="font-mono text-amber-800">{selectedInvoice.parsedMachineIds.join(', ')}</span>
+                  <span className="text-amber-600 ml-1">— no matching machine found</span>
+                </div>
+              )}
+
               {/* Rejection reason */}
               {selectedInvoice.status === 'Rejected' && selectedInvoice.rejectionReason && (
                 <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-sm">
                   <p className="text-red-600 font-medium">Rejection reason:</p>
                   <p className="text-red-700">{selectedInvoice.rejectionReason}</p>
+                </div>
+              )}
+
+              {/* Assign Machine action (for Unassigned invoices) */}
+              {selectedInvoice.status === 'Unassigned' && (
+                <div className="border-t pt-4">
+                  <p className="text-sm text-gray-600 mb-3">This invoice needs to be assigned to a machine:</p>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => { setShowDetailModal(false); setAssignInvoice(selectedInvoice); setAssignMachineId(''); setShowAssignModal(true); }}
+                      className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition"
+                    >
+                      <Link2 size={16} /> Assign Machine
+                    </button>
+                    <button
+                      onClick={() => { setShowDetailModal(false); openInquiryModal(selectedInvoice); }}
+                      className="flex items-center justify-center gap-2 px-4 py-2.5 border border-green-300 text-green-700 rounded-lg hover:bg-green-50 transition"
+                    >
+                      <MessageCircle size={16} /> Ask via WhatsApp
+                    </button>
+                  </div>
                 </div>
               )}
 
@@ -884,11 +1064,192 @@ const TabInvoices = ({ maquinas = [], suppressNotifications = false }) => {
 
             {/* Footer */}
             <div className="px-6 py-4 border-t bg-gray-50 rounded-b-xl">
-              <div className="flex justify-between items-center text-xs text-gray-400">
-                <span>Created: {formatDate(selectedInvoice.createdAt)}</span>
-                {selectedInvoice.confirmedAt && (
-                  <span>Confirmed: {formatDate(selectedInvoice.confirmedAt)}</span>
+              <div className="flex justify-between items-center">
+                <div className="text-xs text-gray-400">
+                  <span>Created: {formatDate(selectedInvoice.createdAt)}</span>
+                  {selectedInvoice.confirmedAt && (
+                    <span className="ml-3">Confirmed: {formatDate(selectedInvoice.confirmedAt)}</span>
+                  )}
+                </div>
+                <button
+                  onClick={() => { setShowDetailModal(false); openInquiryModal(selectedInvoice); }}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm text-green-700 bg-green-50 border border-green-200 rounded-lg hover:bg-green-100 transition"
+                >
+                  <MessageCircle size={14} />
+                  Ask via WhatsApp
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── WhatsApp Inquiry Modal ─── */}
+      {showInquiryModal && inquiryInvoice && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl max-w-md w-full">
+            <div className="flex justify-between items-center px-6 py-4 border-b">
+              <h3 className="text-lg font-semibold flex items-center gap-2">
+                <MessageCircle size={20} className="text-green-600" />
+                Invoice Inquiry
+              </h3>
+              <button
+                onClick={() => { setShowInquiryModal(false); setInquiryInvoice(null); }}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              {/* Invoice summary */}
+              <div className="bg-gray-50 rounded-lg p-3 text-sm space-y-1">
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Invoice</span>
+                  <span className="font-mono font-medium">{inquiryInvoice.invoiceId || inquiryInvoice._id?.toString().slice(-8)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Vendor</span>
+                  <span className="font-medium">{inquiryInvoice.vendor}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Amount</span>
+                  <span className="font-medium">{formatCurrency(inquiryInvoice.totalAmount, inquiryInvoice.currency)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Machine</span>
+                  <span className="font-medium">{getMachineName(inquiryInvoice)}</span>
+                </div>
+              </div>
+
+              {/* Hint */}
+              <div className="flex items-start gap-2 text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                <HelpCircle size={16} className="mt-0.5 flex-shrink-0" />
+                <span>Can&apos;t find the machine for this invoice? Edit the message below and send it via WhatsApp to get help.</span>
+              </div>
+
+              {/* Editable message */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Message</label>
+                <textarea
+                  value={inquiryMessage}
+                  onChange={(e) => setInquiryMessage(e.target.value)}
+                  className="w-full border rounded-lg px-3 py-2 text-sm h-40 resize-none"
+                />
+              </div>
+
+              {/* Actions */}
+              <div className="flex gap-2">
+                <button
+                  onClick={sendWhatsAppInquiry}
+                  className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition font-medium"
+                >
+                  <MessageCircle size={18} />
+                  Open WhatsApp
+                </button>
+                <button
+                  onClick={() => { setShowInquiryModal(false); setInquiryInvoice(null); }}
+                  className="px-4 py-2.5 border rounded-lg hover:bg-gray-50 text-sm"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── Assign Machine Modal ─── */}
+      {showAssignModal && assignInvoice && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl max-w-md w-full">
+            <div className="flex justify-between items-center px-6 py-4 border-b">
+              <h3 className="text-lg font-semibold flex items-center gap-2">
+                <Link2 size={20} className="text-amber-600" />
+                Assign Machine
+              </h3>
+              <button
+                onClick={() => { setShowAssignModal(false); setAssignInvoice(null); }}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              {/* Invoice info */}
+              <div className="bg-gray-50 rounded-lg p-3 text-sm space-y-1">
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Invoice</span>
+                  <span className="font-mono font-medium">{assignInvoice.invoiceId}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Vendor</span>
+                  <span className="font-medium">{assignInvoice.vendor}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Amount</span>
+                  <span className="font-medium">{formatCurrency(assignInvoice.totalAmount, assignInvoice.currency)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Description</span>
+                  <span className="font-medium text-right max-w-[200px] truncate">{assignInvoice.description}</span>
+                </div>
+                {assignInvoice.parsedMachineIds?.length > 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">IDs found in email</span>
+                    <span className="font-mono text-amber-700 font-medium">{assignInvoice.parsedMachineIds.join(', ')}</span>
+                  </div>
                 )}
+              </div>
+
+              {/* Machine selector */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Select Machine</label>
+                <select
+                  value={assignMachineId}
+                  onChange={(e) => setAssignMachineId(e.target.value)}
+                  className="w-full border rounded-lg px-3 py-2.5 text-sm"
+                >
+                  <option value="">— Select a machine —</option>
+                  {maquinas.map((m) => (
+                    <option key={m._id} value={m._id}>
+                      {m.machineId || m.customId || ''} — {m.model || m.brand || 'Unknown'} {m.year || ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Can't find? WhatsApp */}
+              <div className="flex items-start gap-2 text-sm text-gray-600 bg-gray-50 border rounded-lg px-3 py-2">
+                <HelpCircle size={16} className="mt-0.5 flex-shrink-0 text-gray-400" />
+                <span>
+                  Can&apos;t identify the machine?{' '}
+                  <button
+                    onClick={() => { setShowAssignModal(false); openInquiryModal(assignInvoice); }}
+                    className="text-green-600 font-medium hover:underline"
+                  >
+                    Ask via WhatsApp
+                  </button>
+                </span>
+              </div>
+
+              {/* Actions */}
+              <div className="flex gap-2">
+                <button
+                  onClick={handleAssignMachine}
+                  disabled={!assignMachineId || isAssigning}
+                  className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition font-medium disabled:opacity-50"
+                >
+                  <Check size={18} />
+                  {isAssigning ? 'Assigning...' : 'Assign Machine'}
+                </button>
+                <button
+                  onClick={() => { setShowAssignModal(false); setAssignInvoice(null); }}
+                  className="px-4 py-2.5 border rounded-lg hover:bg-gray-50 text-sm"
+                >
+                  Cancel
+                </button>
               </div>
             </div>
           </div>
