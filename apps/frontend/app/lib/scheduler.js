@@ -1,5 +1,10 @@
 // Scheduled task service for running periodic maintenance operations
-import { checkServiceReminders } from '@/lib/alertService';
+import { 
+  checkServiceReminders, 
+  checkChemicalFilterReminders,
+  checkVehicleExpirations,
+  checkVehicleServiceReminders
+} from '@/lib/alertService';
 
 class SchedulerService {
   constructor() {
@@ -75,10 +80,41 @@ class SchedulerService {
   // Service reminders task
   async runServiceReminders() {
     try {
-      console.log('[Scheduler] Running service reminders check...');
-      const alertsCreated = await checkServiceReminders();
-      console.log(`[Scheduler] Service reminders check completed. Created ${alertsCreated.length} alerts`);
-      return { success: true, alertsCreated: alertsCreated.length };
+      console.log('[Scheduler] Running comprehensive service and vehicle checks...');
+      
+      // Check machine service reminders
+      console.log('[Scheduler] Running machine service reminders check...');
+      const serviceAlertsCreated = await checkServiceReminders();
+      console.log(`[Scheduler] Machine service reminders check completed. Created ${serviceAlertsCreated.length} service alerts`);
+      
+      // Check chemical filter reminders
+      console.log('[Scheduler] Running chemical filter reminders check...');
+      const filterAlertsCreated = await checkChemicalFilterReminders();
+      console.log(`[Scheduler] Chemical filter reminders check completed. Created ${filterAlertsCreated.length} filter alerts`);
+      
+      // Check vehicle service reminders
+      console.log('[Scheduler] Running vehicle service reminders check...');
+      const vehicleServiceAlertsCreated = await checkVehicleServiceReminders();
+      console.log(`[Scheduler] Vehicle service reminders check completed. Created ${vehicleServiceAlertsCreated.length} vehicle service alerts`);
+      
+      // Check vehicle RUC/REGO expirations
+      console.log('[Scheduler] Running vehicle RUC/REGO expiration check...');
+      const vehicleExpirationAlertsCreated = await checkVehicleExpirations();
+      console.log(`[Scheduler] Vehicle expiration check completed. Created ${vehicleExpirationAlertsCreated.length} vehicle expiration alerts`);
+      
+      const totalAlerts = serviceAlertsCreated.length + filterAlertsCreated.length + 
+                          vehicleServiceAlertsCreated.length + vehicleExpirationAlertsCreated.length;
+      
+      console.log(`[Scheduler] Total alerts created: ${totalAlerts} (${serviceAlertsCreated.length} machine service + ${filterAlertsCreated.length} filter + ${vehicleServiceAlertsCreated.length} vehicle service + ${vehicleExpirationAlertsCreated.length} vehicle expiration)`);
+      
+      return { 
+        success: true, 
+        alertsCreated: totalAlerts,
+        machineServiceAlerts: serviceAlertsCreated.length,
+        filterAlerts: filterAlertsCreated.length,
+        vehicleServiceAlerts: vehicleServiceAlertsCreated.length,
+        vehicleExpirationAlerts: vehicleExpirationAlertsCreated.length
+      };
     } catch (error) {
       console.error('[Scheduler] Service reminders check failed:', error);
       throw error;

@@ -1,13 +1,13 @@
 import { MongoClient } from 'mongodb';
 import mongoose from 'mongoose';
 
-// Configuraciones de conexión
-const ATLAS_URI = process.env.MONGODB_URI || 'mongodb+srv://judco:judco123@cluster0.f4mj4.mongodb.net/orchardservice?retryWrites=true&w=majority';
-const LOCAL_URI = 'mongodb://localhost:27017/orchardservice';
+// Configuraciones de conexión — SOLO desde variables de entorno
+const ATLAS_URI = process.env.MONGODB_URI;
+const LOCAL_URI = process.env.MONGODB_LOCAL_URI || 'mongodb://localhost:27017/orchardservice';
 
 // Validar que existe alguna configuración
-if (!ATLAS_URI && !LOCAL_URI) {
-  throw new Error('No hay configuración de base de datos disponible');
+if (!ATLAS_URI) {
+  console.warn('⚠️ MONGODB_URI no está configurada en las variables de entorno.');
 }
 
 const dbName = process.env.MONGODB_DB || 'orchardservice';

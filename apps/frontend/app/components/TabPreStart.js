@@ -21,6 +21,14 @@ const TabPreStart = ({ maquinas = [], suppressNotifications = false }) => {
     type: 'success'
   });
   
+  // Forzar re-render cuando las máquinas cambien
+  useEffect(() => {
+    console.log('🔄 TabPreStart: Maquinas array updated:', maquinas.length, 'items');
+    maquinas.forEach(m => {
+      console.log(`Equipment: ${m.machineId} (${m._id}) - Type: ${m.equipmentType}`);
+    });
+  }, [maquinas]);
+
   // Add state for refresh animation
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [records, setRecords] = useState({
@@ -294,8 +302,62 @@ const TabPreStart = ({ maquinas = [], suppressNotifications = false }) => {
     );
   };
   
+  // Get equipment type for display
+  const getEquipmentType = (record) => {
+    // FIRST: Check if the record has equipment type info directly (this is the most reliable)
+    if (record.equipmentType) {
+      console.log('✅ Equipment type from record root:', record.equipmentType);
+      return record.equipmentType === 'vehicle' ? 'Vehicle' : 'Machine';
+    }
+
+    if (record.datos && record.datos.equipmentType) {
+      console.log('✅ Equipment type from record datos:', record.datos.equipmentType);
+      return record.datos.equipmentType === 'vehicle' ? 'Vehicle' : 'Machine';
+    }
+
+    // SECOND: Try to find the equipment in the maquinas array
+    let dbMachineId = null;
+    if (record.maquinaId) dbMachineId = record.maquinaId;
+    else if (record.machineId) dbMachineId = record.machineId;
+    else if (record.datos && record.datos.machineId) dbMachineId = record.datos.machineId;
+    else if (record.datos && record.datos.maquinaId) dbMachineId = record.datos.maquinaId;
+    
+    if (dbMachineId) {
+      const equipment = maquinas.find(m => m._id === dbMachineId);
+      if (equipment) {
+        console.log('✅ Found equipment for prestart:', equipment.machineId, 'type:', equipment.equipmentType);
+        return equipment.equipmentType === 'vehicle' ? 'Vehicle' : 'Machine';
+      } else {
+        console.log('❌ Equipment not found in maquinas array for ID:', dbMachineId);
+      }
+    }
+    
+    // Fallback
+    console.log('⚠️ No equipment type found, defaulting to Machine for record:', record._id);
+    return 'Machine';
+  };
+
+  // Get hours or kilometers based on equipment type
+  const getHoursOrKm = (record) => {
+    const equipmentType = getEquipmentType(record);
+    
+    if (equipmentType === 'Vehicle') {
+      // For vehicles, show kilometers - check multiple possible fields
+      return record.kilometerMileage || 
+             (record.datos && record.datos.kilometerMileage) || 
+             (record.datos && record.datos.currentKilometers) ||
+             record.currentKilometers || '-';
+    } else {
+      // For machines, show hours
+      return record.horasMaquina || 
+             (record.datos && record.datos.horasMaquina) || '-';
+    }
+  };
+
   // Get custom machine ID for display
   const getCustomMachineId = (record) => {
+    console.log('🔍 Full prestart record:', record);
+    
     // First, get the database ID from the record
     let dbMachineId = null;
     if (record.maquinaId) dbMachineId = record.maquinaId;
@@ -304,21 +366,56 @@ const TabPreStart = ({ maquinas = [], suppressNotifications = false }) => {
     else if (record.datos && record.datos.machineId) dbMachineId = record.datos.machineId;
     else if (record.datos && record.datos.maquinaId) dbMachineId = record.datos.maquinaId;
     
+    console.log('🔍 Looking for equipment with database ID:', dbMachineId);
+    console.log('🔍 Available equipment in maquinas array:', maquinas.length, 'items');
+    
     // Now try to find the matching machine to get its custom ID
     if (dbMachineId) {
-      const machine = maquinas.find(m => m._id === dbMachineId);
+      // First try exact _id match
+      let machine = maquinas.find(m => m._id === dbMachineId);
+      
+      // If not found, try machineId match (custom ID)
+      if (!machine) {
+        console.log('❌ No exact _id match, trying machineId match...');
+        machine = maquinas.find(m => m.machineId === dbMachineId);
+      }
+      
       if (machine) {
+        console.log('✅ Found equipment:', machine.machineId, 'type:', machine.equipmentType, '_id:', machine._id);
         // Return the custom ID assigned by the user
         return machine.machineId || machine.maquinariaId || 'No custom ID';
+      } else {
+        console.log('❌ Equipment not found in maquinas array');
+        console.log('Available equipment details:');
+        maquinas.forEach(m => {
+          console.log(`  - ${m.machineId} (_id: ${m._id}, type: ${m.equipmentType})`);
+        });
       }
     }
     
     // If no machine found or no ID, try to get the custom ID directly from the prestart
     if (record.maquina) {
+      console.log('📝 Using maquina field from record:', record.maquina);
       return record.maquina;
     }
     
+    // Try other possible fields
+    const possibleIds = [
+      record.customMachineId,
+      record.datos?.customMachineId,
+      record.datos?.maquina,
+      record.equipmentId
+    ];
+    
+    for (const id of possibleIds) {
+      if (id) {
+        console.log('📝 Using fallback ID:', id);
+        return id;
+      }
+    }
+    
     // Fallback
+    console.log('⚠️ No ID found, using fallback');
     return "ID not found";
   };
 
@@ -401,14 +498,14 @@ const TabPreStart = ({ maquinas = [], suppressNotifications = false }) => {
           <h3 className="font-semibold mb-2">Filters</h3>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div>
-              <label className="block text-sm font-medium mb-1">Machine ID</label>
+              <label className="block text-sm font-medium mb-1">Equipment ID</label>
               <input
                 type="text"
                 name="machineId"
                 value={filters.machineId}
                 onChange={handleFilterChange}
                 className="w-full p-2 border rounded"
-                placeholder="Machine ID"
+                placeholder="Machine/Vehicle ID"
               />
             </div>
             <div>
@@ -474,10 +571,11 @@ const TabPreStart = ({ maquinas = [], suppressNotifications = false }) => {
               <thead>
                 <tr>
                   <th className="table-cell text-left">Date</th>
-                  <th className="table-cell text-left">Machine ID</th>
+                  <th className="table-cell text-left">Equipment ID</th>
+                  <th className="table-cell text-left">Type</th>
                   <th className="table-cell text-left">Workplace</th>
                   <th className="table-cell text-left">Operator</th>
-                  <th className="table-cell text-left">Hours</th>
+                  <th className="table-cell text-left">Hours/KM</th>
                   <th className="table-cell text-left">Status</th>
                   <th className="table-cell text-left">Observations</th>
                   <th className="table-cell text-left">Actions</th>
@@ -493,13 +591,27 @@ const TabPreStart = ({ maquinas = [], suppressNotifications = false }) => {
                       {getCustomMachineId(record)}
                     </td>
                     <td className="table-cell">
+                      <span className={`px-2 py-1 rounded text-xs font-medium ${
+                        getEquipmentType(record) === 'Vehicle' 
+                          ? 'bg-blue-100 text-blue-800' 
+                          : 'bg-green-100 text-green-800'
+                      }`}>
+                        {getEquipmentType(record)}
+                      </span>
+                    </td>
+                    <td className="table-cell">
                       {getMachineWorkplace(record)}
                     </td>
                     <td className="table-cell">
                       {record.operador || (record.datos && record.datos.operador) || '-'}
                     </td>
                     <td className="table-cell">
-                      {record.horasMaquina || (record.datos && record.datos.horasMaquina) || '-'}
+                      {(() => {
+                        const value = getHoursOrKm(record);
+                        const type = getEquipmentType(record);
+                        if (value === '-') return '-';
+                        return type === 'Vehicle' ? `${value} km` : `${value} hrs`;
+                      })()}
                     </td>
                     <td className="table-cell">
                       {renderStatusBadge(record)}
@@ -514,10 +626,55 @@ const TabPreStart = ({ maquinas = [], suppressNotifications = false }) => {
                     <td className="table-cell">
                       <div className="table-actions">
                         <button
-                          onClick={() => {
+                          onClick={async () => {
+                            // Fetch equipment data for the prestart based on type
+                            let equipmentData = null;
+                            if (record.maquinaId) {
+                              try {
+                                const equipmentType = getEquipmentType(record);
+                                console.log('🔍 Fetching equipment data for type:', equipmentType);
+                                
+                                let response;
+                                if (equipmentType === 'Vehicle') {
+                                  // Try vehicles endpoint first
+                                  response = await fetch(`/api/vehicles/${record.maquinaId}?public=true`);
+                                  if (response.ok) {
+                                    equipmentData = await response.json();
+                                    console.log('✅ Fetched vehicle data for prestart modal:', equipmentData);
+                                  } else {
+                                    console.log('❌ Vehicle not found, trying machines endpoint');
+                                    // Fallback to machines endpoint
+                                    response = await fetch(`/api/machines/${record.maquinaId}?public=true`);
+                                    if (response.ok) {
+                                      equipmentData = await response.json();
+                                      console.log('✅ Fetched machine data (fallback) for prestart modal:', equipmentData);
+                                    }
+                                  }
+                                } else {
+                                  // Try machines endpoint first
+                                  response = await fetch(`/api/machines/${record.maquinaId}?public=true`);
+                                  if (response.ok) {
+                                    equipmentData = await response.json();
+                                    console.log('✅ Fetched machine data for prestart modal:', equipmentData);
+                                  } else {
+                                    console.log('❌ Machine not found, trying vehicles endpoint');
+                                    // Fallback to vehicles endpoint
+                                    response = await fetch(`/api/vehicles/${record.maquinaId}?public=true`);
+                                    if (response.ok) {
+                                      equipmentData = await response.json();
+                                      console.log('✅ Fetched vehicle data (fallback) for prestart modal:', equipmentData);
+                                    }
+                                  }
+                                }
+                              } catch (error) {
+                                console.error('💥 Error fetching equipment data for modal:', error);
+                              }
+                            }
+                            
                             setSelectedRecord({
                               ...record,
                               createdAt: record.createdAt || record.fecha,
+                              machine: equipmentData // Add equipment data to the record
                             });
                             setShowDetails(true);
                           }}

@@ -63,6 +63,16 @@ export async function GET(request) {
     const formattedData = services.map(service => {
       const serviceData = {};
       
+      // Helper function to get equipment type
+      const getEquipmentType = () => {
+        if (service.equipmentType) return service.equipmentType;
+        if (service.datos && service.datos.equipmentType) return service.datos.equipmentType;
+        return 'machine'; // default fallback
+      };
+      
+      const equipmentType = getEquipmentType();
+      const isVehicle = equipmentType === 'vehicle';
+      
       // ID
       serviceData._id = service._id.toString();
       
@@ -73,9 +83,31 @@ export async function GET(request) {
       // Service details
       serviceData.serviceType = service.tipoService || (service.datos && service.datos.tipoService) || '';
       serviceData.technician = service.tecnico || (service.datos && service.datos.tecnico) || '';
-      serviceData.currentHours = service.horasActuales || (service.datos && service.datos.horasActuales) || '';
-      serviceData.nextServiceHours = service.horasProximoService || 
-                                    (service.datos && service.datos.horasProximoService) || '';
+      
+      // Current Hours/Kilometers based on equipment type
+      if (isVehicle) {
+        serviceData.currentKilometers = service.kilometersActuales || 
+                                       (service.datos && service.datos.kilometersActuales) ||
+                                       service.currentKilometers ||
+                                       (service.datos && service.datos.currentKilometers) || '';
+        serviceData.nextServiceKilometers = service.kilometersProximoService || 
+                                           (service.datos && service.datos.kilometersProximoService) ||
+                                           service.nextServiceKm ||
+                                           (service.datos && service.datos.nextServiceKm) || '';
+        // Set hours fields as empty for vehicles
+        serviceData.currentHours = '';
+        serviceData.nextServiceHours = '';
+      } else {
+        serviceData.currentHours = service.horasActuales || (service.datos && service.datos.horasActuales) || '';
+        serviceData.nextServiceHours = service.horasProximoService || 
+                                      (service.datos && service.datos.horasProximoService) || '';
+        // Set kilometers fields as empty for machines
+        serviceData.currentKilometers = '';
+        serviceData.nextServiceKilometers = '';
+      }
+      
+      // Equipment type info
+      serviceData.equipmentType = equipmentType;
       
       // Work performed
       if (service.trabajosRealizados || (service.datos && service.datos.trabajosRealizados)) {

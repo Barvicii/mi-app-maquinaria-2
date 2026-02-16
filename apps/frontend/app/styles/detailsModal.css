@@ -4,8 +4,10 @@
 }
 
 .modal-content {
-  @apply bg-white rounded-lg shadow-xl w-full max-w-2xl animate-fadeIn;
-  max-height: 90vh; /* Aumentamos ligeramente la altura máxima */
+  @apply bg-white rounded-lg shadow-xl w-full animate-fadeIn;
+  max-width: 1200px; /* Ampliado significativamente */
+  max-height: 85vh; /* Altura fija para evitar cambios */
+  min-height: 700px; /* Altura mínima para consistencia */
   overflow: hidden !important; /* Forzar sin overflow */
 }
 
@@ -24,7 +26,8 @@
 
 .modal-body {
   @apply overflow-y-auto p-3; /* Reducido de p-4 a p-3 */
-  max-height: calc(90vh - 100px); /* Aumentada la altura y reducido el espacio para header/footer */
+  max-height: calc(85vh - 120px); /* Ajustado para la nueva altura del modal */
+  min-height: 550px; /* Altura mínima para consistencia */
 }
 
 /* Para evitar scrollbars anidados en componentes hijos */

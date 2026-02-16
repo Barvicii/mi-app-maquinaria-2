@@ -221,26 +221,104 @@ const TabServices = ({ machineId, maquinas = [], suppressNotifications = false }
       machineId = service.datos.machineId || service.datos.maquinaId;
     }
     
+    console.log('🔍 Looking for service equipment with ID:', machineId, 'in', maquinas.length, 'items');
+    
     // Buscar la máquina correspondiente para obtener su custom ID actual
     if (machineId && maquinas.length > 0) {
       const machine = maquinas.find(m => m._id === machineId);
       if (machine) {
+        console.log('✅ Found service equipment:', machine.machineId, 'type:', machine.equipmentType);
         return machine.machineId || machine.maquinariaId || machine.customId || 'No custom ID';
+      } else {
+        console.log('❌ Service equipment not found in maquinas array');
+        console.log('Available equipment IDs:', maquinas.map(m => `${m._id} (${m.machineId})`));
       }
     }
     
     // Fallback: usar los datos del servicio si no encontramos la máquina
-    return service.customMachineId || 
+    const fallback = service.customMachineId || 
            getServiceProperty(service, 'customMachineId') || 
            getServiceProperty(service, 'machineId') || 
            service.machineId || '—';
+    
+    console.log('📝 Using fallback for service:', fallback);
+    return fallback;
+  };
+
+  // Get equipment type for a service
+  const getServiceEquipmentType = (service) => {
+    // FIRST: Check if the service record has equipment type info directly (this is the most reliable)
+    if (service.equipmentType) {
+      console.log('✅ Equipment type from service root:', service.equipmentType);
+      return service.equipmentType === 'vehicle' ? 'Vehicle' : 'Machine';
+    }
+
+    if (service.datos && service.datos.equipmentType) {
+      console.log('✅ Equipment type from service datos:', service.datos.equipmentType);
+      return service.datos.equipmentType === 'vehicle' ? 'Vehicle' : 'Machine';
+    }
+
+    // SECOND: Try to get machine ID and find the equipment
+    let machineId = service.machineId || service.maquinaId;
+    if (!machineId && service.datos) {
+      machineId = service.datos.machineId || service.datos.maquinaId;
+    }
+    
+    if (machineId && maquinas.length > 0) {
+      const equipment = maquinas.find(m => m._id === machineId);
+      if (equipment) {
+        console.log('✅ Found equipment for service:', equipment.machineId, 'type:', equipment.equipmentType);
+        return equipment.equipmentType === 'vehicle' ? 'Vehicle' : 'Machine';
+      } else {
+        console.log('❌ Service equipment not found in maquinas array for ID:', machineId);
+      }
+    }
+    
+    // Fallback
+    console.log('⚠️ No equipment type found, defaulting to Machine for service:', service._id);
+    return 'Machine';
+  };
+
+  // Get current hours or kilometers based on equipment type
+  const getCurrentHoursOrKm = (service) => {
+    const equipmentType = getServiceEquipmentType(service);
+    
+    if (equipmentType === 'Vehicle') {
+      // For vehicles, show kilometers - check multiple possible fields
+      return getServiceProperty(service, 'kilometersActuales') || 
+             getServiceProperty(service, 'currentKilometers') ||
+             getServiceProperty(service, 'kilometerMileage') ||
+             service.kilometersActuales ||
+             service.currentKilometers ||
+             service.kilometerMileage || '—';
+    } else {
+      // For machines, show hours
+      return getServiceProperty(service, 'horasActuales') || '—';
+    }
+  };
+
+  // Get next service hours or kilometers based on equipment type
+  const getNextService = (service) => {
+    const equipmentType = getServiceEquipmentType(service);
+    
+    if (equipmentType === 'Vehicle') {
+      // For vehicles, show next service in kilometers
+      return getServiceProperty(service, 'kilometersProximoService') || 
+             getServiceProperty(service, 'nextServiceKm') ||
+             service.kilometersProximoService ||
+             service.nextServiceKm || '—';
+    } else {
+      // For machines, show hours
+      return getServiceProperty(service, 'horasProximoService') || '—';
+    }
   };
 
   // Forzar re-render cuando las máquinas cambien
   useEffect(() => {
-    // Solo forza un re-render, no necesita hacer nada específico
-    // porque las funciones getServiceCustomMachineId y getServiceWorkplace
-    // ya usan las máquinas actualizadas
+    console.log('🔄 TabServices: Maquinas array updated:', maquinas.length, 'items');
+    maquinas.forEach(m => {
+      console.log(`Equipment: ${m.machineId} (${m._id}) - Type: ${m.equipmentType}`);
+    });
   }, [maquinas]);
 
   // Función para eliminar un servicio
@@ -378,14 +456,14 @@ const TabServices = ({ machineId, maquinas = [], suppressNotifications = false }
             <h3 className="font-semibold mb-2">Filters</h3>
             <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
               <div>
-                <label className="block text-sm font-medium mb-1">Machine ID</label>
+                <label className="block text-sm font-medium mb-1">Equipment ID</label>
                 <input
                   type="text"
                   name="machineId"
                   value={filters.machineId}
                   onChange={handleFilterChange}
                   className="w-full p-2 border rounded"
-                  placeholder="Machine ID"
+                  placeholder="Machine/Vehicle ID"
                 />
               </div>
               <div>
@@ -473,23 +551,24 @@ const TabServices = ({ machineId, maquinas = [], suppressNotifications = false }
                 <thead>
                   <tr className="table-header">
                     <th className="table-header-cell">Date</th>
-                    <th className="table-header-cell">Machine ID</th>
+                    <th className="table-header-cell">Equipment ID</th>
+                    <th className="table-header-cell">Type</th>
                     <th className="table-header-cell">Workplace</th>
                     <th className="table-header-cell">Technician</th>
-                    <th className="table-header-cell">Type</th>
-                    <th className="table-header-cell">Current Hours</th>
-                    <th className="table-header-cell">Next Service Hours</th>
+                    <th className="table-header-cell">Service Type</th>
+                    <th className="table-header-cell">Current Hours/KM</th>
+                    <th className="table-header-cell">Next Service</th>
                     <th className="table-header-cell">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {loading ? (
                     <tr>
-                      <td colSpan="8" className="text-center py-4">Loading...</td>
+                      <td colSpan="9" className="text-center py-4">Loading...</td>
                     </tr>
                   ) : services.length === 0 ? (
                     <tr>
-                      <td colSpan="8" className="text-center py-4">No service records found.</td>
+                      <td colSpan="9" className="text-center py-4">No service records found.</td>
                     </tr>
                   ) : (
                     currentItems.map((service) => (
@@ -502,6 +581,15 @@ const TabServices = ({ machineId, maquinas = [], suppressNotifications = false }
                           {getServiceCustomMachineId(service)}
                         </td>
                         <td className="table-cell">
+                          <span className={`px-2 py-1 rounded text-xs font-medium ${
+                            getServiceEquipmentType(service) === 'Vehicle' 
+                              ? 'bg-blue-100 text-blue-800' 
+                              : 'bg-green-100 text-green-800'
+                          }`}>
+                            {getServiceEquipmentType(service)}
+                          </span>
+                        </td>
+                        <td className="table-cell">
                           {getServiceWorkplace(service)}
                         </td>
                         <td className="table-cell">
@@ -511,15 +599,72 @@ const TabServices = ({ machineId, maquinas = [], suppressNotifications = false }
                           {getServiceProperty(service, 'tipoService') || '—'}
                         </td>
                         <td className="table-cell">
-                          {getServiceProperty(service, 'horasActuales') || '—'}
+                          {(() => {
+                            const value = getCurrentHoursOrKm(service);
+                            const type = getServiceEquipmentType(service);
+                            if (value === '—') return '—';
+                            return type === 'Vehicle' ? `${value} km` : `${value} hrs`;
+                          })()}
                         </td>
                         <td className="table-cell">
-                          {getServiceProperty(service, 'horasProximoService') || '—'}
+                          {(() => {
+                            const value = getNextService(service);
+                            const type = getServiceEquipmentType(service);
+                            if (value === '—') return '—';
+                            return type === 'Vehicle' ? `${value} km` : `${value} hrs`;
+                          })()}
                         </td>
                         <td className="table-cell">
                           <div className="table-actions">
                             <button
-                              onClick={() => {
+                              onClick={async () => {
+                                // Fetch equipment data for the service based on type
+                                let equipmentData = null;
+                                const machineId = service.machineId || service.maquinaId || 
+                                  (service.datos && (service.datos.machineId || service.datos.maquinaId));
+                                
+                                if (machineId) {
+                                  try {
+                                    const equipmentType = getServiceEquipmentType(service);
+                                    console.log('🔍 Fetching service equipment data for type:', equipmentType);
+                                    
+                                    let response;
+                                    if (equipmentType === 'Vehicle') {
+                                      // Try vehicles endpoint first
+                                      response = await fetch(`/api/vehicles/${machineId}?public=true`);
+                                      if (response.ok) {
+                                        equipmentData = await response.json();
+                                        console.log('✅ Fetched vehicle data for service modal:', equipmentData);
+                                      } else {
+                                        console.log('❌ Vehicle not found, trying machines endpoint');
+                                        // Fallback to machines endpoint
+                                        response = await fetch(`/api/machines/${machineId}?public=true`);
+                                        if (response.ok) {
+                                          equipmentData = await response.json();
+                                          console.log('✅ Fetched machine data (fallback) for service modal:', equipmentData);
+                                        }
+                                      }
+                                    } else {
+                                      // Try machines endpoint first
+                                      response = await fetch(`/api/machines/${machineId}?public=true`);
+                                      if (response.ok) {
+                                        equipmentData = await response.json();
+                                        console.log('✅ Fetched machine data for service modal:', equipmentData);
+                                      } else {
+                                        console.log('❌ Machine not found, trying vehicles endpoint');
+                                        // Fallback to vehicles endpoint
+                                        response = await fetch(`/api/vehicles/${machineId}?public=true`);
+                                        if (response.ok) {
+                                          equipmentData = await response.json();
+                                          console.log('✅ Fetched vehicle data (fallback) for service modal:', equipmentData);
+                                        }
+                                      }
+                                    }
+                                  } catch (error) {
+                                    console.error('💥 Error fetching equipment data for service modal:', error);
+                                  }
+                                }
+
                                 // Aplanar datos para mejor visualización
                                 const flattenedService = {
                                   ...service,
@@ -533,7 +678,8 @@ const TabServices = ({ machineId, maquinas = [], suppressNotifications = false }
                                   repuestos: getServiceProperty(service, 'repuestos'),
                                   observaciones: getServiceProperty(service, 'observaciones'),
                                   costo: getServiceProperty(service, 'costo'),
-                                  maquina: getServiceProperty(service, 'maquina')
+                                  maquina: getServiceProperty(service, 'maquina'),
+                                  machine: equipmentData // Add equipment data to the service record
                                 };
                                 setSelectedRecord(flattenedService);
                                 setShowDetails(true);

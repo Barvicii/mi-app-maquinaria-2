@@ -1,7 +1,11 @@
+require('dotenv').config();
 const { MongoClient, ObjectId } = require('mongodb');
 
 // Configuration
-const MONGO_URI = process.env.MONGODB_URI || 'mongodb+srv://barviciigame:Apple123@cluster0.wkwfk.mongodb.net/orchardservice?retryWrites=true&w=majority&appName=Cluster0';
+const MONGO_URI = process.env.MONGODB_URI;
+if (!MONGO_URI) {
+  throw new Error('MONGODB_URI environment variable is not set');
+}
 
 async function listUsers() {
   let client;

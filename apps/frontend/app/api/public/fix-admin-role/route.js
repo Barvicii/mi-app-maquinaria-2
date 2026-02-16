@@ -1,83 +1,43 @@
 import { NextResponse } from 'next/server';
-import { MongoClient } from 'mongodb';
+import { connectDB } from '@/lib/mongodb';
 
-export async function POST() {
-  const headers = {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type',
-  };
-
-  let client;
-
+export async function POST(request) {
   try {
-    if (!process.env.MONGODB_URI) {
-      return NextResponse.json({
-        success: false,
-        error: 'MongoDB URI not configured'
-      }, { status: 500, headers });
+    // Require a setup secret
+    const setupSecret = process.env.ADMIN_SETUP_SECRET;
+    if (!setupSecret) {
+      return NextResponse.json({ success: false, error: 'Setup not available' }, { status: 403 });
     }
 
-    client = new MongoClient(process.env.MONGODB_URI);
-    await client.connect();
+    const body = await request.json().catch(() => ({}));
+    if (body.secret !== setupSecret) {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 403 });
+    }
 
-    const db = client.db('orchardservice');
-    const usersCollection = db.collection('users');
+    const adminEmail = process.env.ADMIN_EMAIL;
+    if (!adminEmail) {
+      return NextResponse.json({ success: false, error: 'Admin email not configured' }, { status: 500 });
+    }
 
-    // Update the admin user role to SUPER_ADMIN
-    const result = await usersCollection.updateOne(
-      { email: 'orchardservices96@gmail.com' },
-      { 
-        $set: { 
-          role: 'SUPER_ADMIN',
-          updatedAt: new Date()
-        }
-      }
+    const db = await connectDB();
+
+    const result = await db.collection('users').updateOne(
+      { email: adminEmail },
+      { $set: { role: 'SUPER_ADMIN', updatedAt: new Date() } }
     );
 
     if (result.matchedCount === 0) {
-      return NextResponse.json({
-        success: false,
-        error: 'Admin user not found'
-      }, { status: 404, headers });
+      return NextResponse.json({ success: false, error: 'Admin user not found' }, { status: 404 });
     }
-
-    // Get the updated user
-    const updatedUser = await usersCollection.findOne({ email: 'orchardservices96@gmail.com' });
 
     return NextResponse.json({
       success: true,
-      message: 'Admin user role updated to SUPER_ADMIN',
-      user: {
-        id: updatedUser._id.toString(),
-        email: updatedUser.email,
-        name: updatedUser.name,
-        role: updatedUser.role
-      },
-      timestamp: new Date().toISOString()
-    }, { status: 200, headers });
+      message: 'Admin role updated to SUPER_ADMIN'
+    });
 
   } catch (error) {
     console.error('Error updating admin role:', error);
-    return NextResponse.json({
-      success: false,
-      error: error.message
-    }, { status: 500, headers });
-  } finally {
-    if (client) {
-      await client.close();
-    }
+    return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 });
   }
-}
-
-export async function OPTIONS() {
-  return NextResponse.json({}, { 
-    status: 200,
-    headers: {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type',
-    }
-  });
 }
 

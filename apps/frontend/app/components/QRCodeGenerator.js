@@ -1,8 +1,8 @@
 import QRCode from 'qrcode.react';
 
 const QRCodeGenerator = ({ machineId }) => {
-  // Create the full URL for the service page
-  const serviceUrl = `${window.location.origin}/service/${machineId}`;
+  // Create the full URL for the service page with public access
+  const serviceUrl = `${window.location.origin}/service/${machineId}?public=true`;
   
   console.log('Generated QR URL:', serviceUrl); // Debug log
 

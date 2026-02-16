@@ -17,6 +17,7 @@ import TabUsers from './TabUsers';
 import OrganizationManagement from './OrganizationManagement';
 import ClientMetricsDashboard from './ClientMetricsDashboard';
 import DieselConfig from './DieselConfig';
+import TabInvoices from './TabInvoices';
 import '@/styles/layout.css';
 import '@/styles/machinary.css';
 import '@/styles/tables.css';
@@ -27,6 +28,7 @@ const MachinesRegistry = ({ initialTab = 'dashboard', children }) => {
   const [maquinas, setMaquinas] = useState([]);
   const [prestartRecords, setPrestartRecords] = useState([]);
   const [serviceRecords, setServiceRecords] = useState([]);
+  const [isLoadingEquipment, setIsLoadingEquipment] = useState(false);
 
   // Reference for main content
   const mainContentRef = useRef(null);
@@ -47,23 +49,88 @@ const MachinesRegistry = ({ initialTab = 'dashboard', children }) => {
   }, []);
 
   useEffect(() => {
-    const fetchMachines = async () => {
+    const fetchMachinesAndVehicles = async () => {
+      // Prevent multiple simultaneous calls
+      if (isLoadingEquipment) {
+        console.log('🔄 Already fetching equipment, skipping...');
+        return;
+      }
+      
+      // Only fetch if we don't already have data
+      if (maquinas.length > 0) {
+        console.log('📋 Equipment already loaded, skipping fetch');
+        return;
+      }
+      
       try {
-        const response = await fetch('/api/machines');
-        if (!response.ok) {
-          throw new Error('Error fetching machines');
+        setIsLoadingEquipment(true);
+        console.log('🔄 Fetching machines and vehicles...');
+        
+        // Add delay to prevent rate limiting
+        await new Promise(resolve => setTimeout(resolve, 200));
+        
+        // Fetch both machines and vehicles
+        const [machinesResponse, vehiclesResponse] = await Promise.all([
+          fetch('/api/machines'),
+          fetch('/api/vehicles')
+        ]);
+
+        let allEquipment = [];
+
+        // Add machines
+        if (machinesResponse.ok) {
+          const machinesData = await machinesResponse.json();
+          console.log('📋 Machines loaded:', machinesData.length);
+          const machinesWithType = machinesData.map(machine => ({
+            ...machine,
+            equipmentType: 'machinery'
+          }));
+          allEquipment = [...allEquipment, ...machinesWithType];
+        } else {
+          console.error('❌ Failed to fetch machines:', machinesResponse.status);
+          // Don't throw error for 429, just log it
+          if (machinesResponse.status === 429) {
+            console.log('⚠️ Rate limited, will retry later');
+            return;
+          }
         }
-        const data = await response.json();
-        setMaquinas(data);
+
+        // Add vehicles
+        if (vehiclesResponse.ok) {
+          const vehiclesData = await vehiclesResponse.json();
+          console.log('🚗 Vehicles loaded:', vehiclesData.length);
+          vehiclesData.forEach(vehicle => {
+            console.log(`Vehicle: ${vehicle.machineId} (${vehicle._id}) - Type: vehicle`);
+          });
+          const vehiclesWithType = vehiclesData.map(vehicle => ({
+            ...vehicle,
+            equipmentType: 'vehicle'
+          }));
+          allEquipment = [...allEquipment, ...vehiclesWithType];
+        } else {
+          console.error('❌ Failed to fetch vehicles:', vehiclesResponse.status);
+          // Don't throw error for 429, just log it
+          if (vehiclesResponse.status === 429) {
+            console.log('⚠️ Rate limited, will retry later');
+            return;
+          }
+        }
+
+        console.log('✅ All equipment loaded:', allEquipment.length, 'items');
+        console.log('Equipment IDs:', allEquipment.map(eq => `${eq.machineId} (${eq.equipmentType})`));
+        setMaquinas(allEquipment);
       } catch (error) {
-        console.error('Error loading machines:', error);
+        console.error('💥 Error loading equipment:', error);
+      } finally {
+        setIsLoadingEquipment(false);
       }
     };
 
-    if (session) {
-      fetchMachines();
+    // Only fetch if session exists
+    if (session?.user?.id) {
+      fetchMachinesAndVehicles();
     }
-  }, [session]);
+  }, [session?.user?.id]); // Keep only session?.user?.id as dependency
 
   const handleTabChange = (tab) => {
     // Scroll al inicio al cambiar de pestaña
@@ -147,6 +214,12 @@ const MachinesRegistry = ({ initialTab = 'dashboard', children }) => {
               />
             )}
             {activeTab === 'reports' && <TabReports suppressNotifications={true} />}
+            {activeTab === 'invoices' && (
+              <TabInvoices 
+                maquinas={maquinas}
+                suppressNotifications={true}
+              />
+            )}
             
             {/* Settings menu tabs */}
             {activeTab === 'organizations' && isSuperAdmin && <OrganizationManagement />}

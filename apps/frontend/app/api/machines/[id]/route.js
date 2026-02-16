@@ -66,12 +66,32 @@ export async function GET(request, { params }) {
     
     console.log(`Machine found: ${machine._id}`);
     
+    // Filter sensitive fields for public access
+    const publicSafeFields = ['_id', 'machineId', 'maquinaId', 'customId', 'Machine_ID',
+      'model', 'modelo', 'brand', 'serialNumber', 'serie', 'year',
+      'currentHours', 'horasActuales', 'engineOil', 'hydraulicOil', 'transmissionOil',
+      'filters', 'chemicalFilters', 'tires', 'lastService', 'nextService', 'proximoService',
+      'prestartTemplateId'];
+    
+    let machineData = machine;
+    if (isPublic) {
+      machineData = {};
+      for (const field of publicSafeFields) {
+        if (machine[field] !== undefined) {
+          machineData[field] = machine[field];
+        }
+      }
+    }
+    
     // Asegurarse de que la respuesta incluya todos los campos necesarios
     const response = {
-      ...machine,
+      ...machineData,
       _id: machine._id.toString(),
-      machineId: machine.machineId || machine._id.toString(),
-      maquinaId: machine.maquinaId || machine.machineId || machine._id.toString()
+      // Agregar múltiples variaciones del ID para máxima compatibilidad
+      machineId: machine.machineId || machine.Machine_ID || machine.customId || machine._id.toString(),
+      maquinaId: machine.maquinaId || machine.Machine_ID || machine.machineId || machine.customId || machine._id.toString(),
+      customId: machine.customId || machine.Machine_ID || machine.machineId || machine._id.toString(),
+      Machine_ID: machine.Machine_ID || machine.machineId || machine.customId || machine.maquinaId || machine._id.toString()
     };
     
     return NextResponse.json(response);

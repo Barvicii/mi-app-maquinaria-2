@@ -4,6 +4,7 @@ import { authOptions } from '../../auth/[...nextauth]/route';
 import { dbConnect } from "@/lib/mongodb";
 import Organization from "@/models/Organization";
 import User from "@/models/User";
+import Machine from "@/models/Machine";
 
 // GET - Obtener una organización específica
 export async function GET(request, { params }) {
@@ -35,10 +36,26 @@ export async function GET(request, { params }) {
 
     // Get current user count
     const currentUserCount = await User.countDocuments({ organizationId: organization._id });
+    
+    // Buscar máquinas por organizationId O por organization (string)
+    const currentMachineCount = await Machine.countDocuments({ 
+      $or: [
+        { organizationId: organization._id },
+        { organization: organization.name }
+      ]
+    });
+    
+    console.log('🔄 GET Organization - Counts:', { 
+      organizationId: organization._id, 
+      organizationName: organization.name,
+      currentUserCount, 
+      currentMachineCount 
+    });
 
     const orgWithCount = {
       ...organization.toObject(),
-      currentUserCount
+      currentUserCount,
+      currentMachineCount
     };
 
     return NextResponse.json({
@@ -71,7 +88,19 @@ export async function PUT(request, { params }) {
       return NextResponse.json({ error: 'Access denied' }, { status: 403 });
     }
 
-    const { name, description, maxUsers, active } = await request.json();
+    const { name, description, maxUsers, maxMachines, active, adminName, adminEmail } = await request.json();
+    
+    console.log('🔄 PUT Organization - Request data:', { 
+      name, 
+      description, 
+      maxUsers, 
+      maxMachines, 
+      active,
+      adminName,
+      adminEmail
+    });
+    
+    console.log('🔄 PUT Organization - Received data:', { name, description, maxUsers, maxMachines, active, adminName, adminEmail });
     
     if (!name) {
       return NextResponse.json(
@@ -83,6 +112,13 @@ export async function PUT(request, { params }) {
     if (maxUsers && maxUsers < 1) {
       return NextResponse.json(
         { error: 'Maximum users must be at least 1' },
+        { status: 400 }
+      );
+    }
+
+    if (maxMachines && maxMachines < 1) {
+      return NextResponse.json(
+        { error: 'Maximum machines must be at least 1' },
         { status: 400 }
       );
     }
@@ -106,6 +142,32 @@ export async function PUT(request, { params }) {
           error: `Cannot reduce max users to ${maxUsers}. Organization currently has ${currentUserCount} users. Please remove users first or set a higher limit.`,
           currentUserCount,
           requestedMaxUsers: maxUsers
+        }, { status: 400 });
+      }
+    }
+
+    // Si se está reduciendo maxMachines, verificar que no sea menor al número actual de máquinas
+    if (maxMachines && maxMachines < (existingOrg.maxMachines || 20)) {
+      const currentMachineCount = await Machine.countDocuments({ 
+        $or: [
+          { organizationId },
+          { organization: existingOrg.name }
+        ]
+      });
+      
+      console.log('🔄 PUT Validation - Machine count check:', {
+        organizationId,
+        organizationName: existingOrg.name,
+        currentMachineCount,
+        maxMachines,
+        existingMaxMachines: existingOrg.maxMachines
+      });
+      
+      if (maxMachines < currentMachineCount) {
+        return NextResponse.json({
+          error: `Cannot reduce max machines to ${maxMachines}. Organization currently has ${currentMachineCount} machines. Please remove machines first or set a higher limit.`,
+          currentMachineCount,
+          requestedMaxMachines: maxMachines
         }, { status: 400 });
       }
     }
@@ -136,8 +198,30 @@ export async function PUT(request, { params }) {
       updateData.maxUsers = maxUsers;
     }
 
+    if (maxMachines !== undefined) {
+      updateData.maxMachines = maxMachines;
+    }
+
+    console.log('🔄 PUT Organization - Update data:', updateData);
+
     if (active !== undefined) {
       updateData.active = active;
+    }
+
+    // Actualizar el administrador si se proporcionan datos
+    if (adminName || adminEmail) {
+      const adminUpdateData = {};
+      if (adminName) adminUpdateData.name = adminName;
+      if (adminEmail) adminUpdateData.email = adminEmail;
+      
+      if (Object.keys(adminUpdateData).length > 0) {
+        await User.findByIdAndUpdate(
+          existingOrg.adminId,
+          adminUpdateData,
+          { new: true }
+        );
+        console.log('✅ Administrator updated successfully:', adminUpdateData);
+      }
     }
 
     const updatedOrg = await Organization.findByIdAndUpdate(

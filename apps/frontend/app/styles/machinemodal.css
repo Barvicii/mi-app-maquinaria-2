@@ -64,19 +64,35 @@
   }
   
   .modal-content {
-    @apply bg-white rounded-lg shadow-xl max-h-[90vh] overflow-y-auto w-full max-w-6xl;
+    @apply bg-white rounded-lg shadow-xl w-full max-w-6xl;
+    max-height: 90vh !important;
+    height: auto !important;
+    min-height: 500px !important;
+    display: flex !important;
+    flex-direction: column !important;
+    overflow: hidden !important;
+    position: relative !important;
   }
 
   .modal-header {
-    @apply sticky top-0 bg-white z-10 px-6 py-4 border-b;
+    @apply px-6 py-4 border-b;
+    flex-shrink: 0 !important;
+    background: white !important;
+    z-index: 10 !important;
   }
 
   .modal-body {
     @apply px-6 py-4;
+    flex: 1 !important;
+    overflow-y: auto !important;
+    min-height: 0 !important;
   }
 
   .modal-footer {
-    @apply sticky bottom-0 bg-white z-10 px-6 py-4 border-t;
+    @apply px-6 py-4 border-t;
+    flex-shrink: 0 !important;
+    background: white !important;
+    z-index: 10 !important;
   }
   
   .modal-title {

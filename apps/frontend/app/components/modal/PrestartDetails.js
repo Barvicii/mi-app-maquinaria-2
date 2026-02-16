@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { CheckCircle, XCircle, Loader } from 'lucide-react';
+import { calculateFilterRemainingHours, getActiveChemicalFilters } from '../../lib/filterUtils';
 
 const PrestartDetails = ({ data }) => {
   const [template, setTemplate] = useState(null);
@@ -120,19 +121,35 @@ const PrestartDetails = ({ data }) => {
   const getStatus = (data) => {
     if (!data) return 'Unknown';
 
+    // Check carbon filter status first - if overdue, never show OK
+    if (data.machine?.filters?.carbon?.isActive) {
+      const currentHours = parseInt(getValueFromRecord(data, 'horasMaquina')) || 0;
+      const carbonFilter = data.machine.filters.carbon;
+      const installationHours = carbonFilter.installationHours || 0;
+      const expectedLifeHours = carbonFilter.expectedLifeHours || 100;
+      const hoursUsed = currentHours - installationHours;
+      const remainingHours = expectedLifeHours - hoursUsed;
+      
+      // If filter is overdue, never show OK
+      if (remainingHours <= 0) {
+        return 'Needs Review';
+      }
+    }
+
     // If we have a template, use its items for status checking
     if (template && template.checkItems) {
-      const requiredItems = template.checkItems
-        .filter(item => item.required)
-        .map(item => item.name);
-        
-      if (requiredItems.length === 0) return 'OK'; // No required items
+      const hasFailedChecks = template.checkItems.some(item => {
+        const value = getValueFromRecord(data, item.name);
+        console.log(`Checking item ${item.name}:`, value, 'Required:', item.required);
+        // Any check that is explicitly false means failure
+        if (value === false) return true;
+        // Required items that are not true also mean failure
+        if (item.required && value !== true) return true;
+        return false;
+      });
       
-      const allRequiredChecksPass = requiredItems.every(
-        item => getValueFromRecord(data, item) === true
-      );
-      
-      return allRequiredChecksPass ? 'OK' : 'Needs Review';
+      console.log('Template check result - hasFailedChecks:', hasFailedChecks);
+      return hasFailedChecks ? 'Needs Review' : 'OK';
     }
 
     // Fall back to default check items if no template
@@ -141,11 +158,14 @@ const PrestartDetails = ({ data }) => {
       'lucesYAlarmas', 'frenos', 'extintores', 'cinturonSeguridad'
     ];
 
-    const allChecksPass = defaultCheckItems.every(
-      item => getValueFromRecord(data, item) === true
-    );
+    const hasFailedChecks = defaultCheckItems.some(item => {
+      const value = getValueFromRecord(data, item);
+      console.log(`Checking default item ${item}:`, value);
+      return value === false; // Any explicitly false value means failure
+    });
     
-    return allChecksPass ? 'OK' : 'Needs Review';
+    console.log('Default check result - hasFailedChecks:', hasFailedChecks);
+    return hasFailedChecks ? 'Needs Review' : 'OK';
   };
 
   // Default check items (used if no template is available)
@@ -163,9 +183,96 @@ const PrestartDetails = ({ data }) => {
   const operador = getValueFromRecord(data, 'operador');
   const horasMaquina = getValueFromRecord(data, 'horasMaquina');
   const horasProximoService = getValueFromRecord(data, 'horasProximoService');
+  
+  // Get vehicle-specific prestart data
+  const kilometerMileage = getValueFromRecord(data, 'kilometerMileage');
+  const kilometersProximoService = getValueFromRecord(data, 'kilometersProximoService');
+  
   const observaciones = getValueFromRecord(data, 'observaciones');
   const fecha = data.fecha || data.createdAt;
+
+  // Get machine/vehicle information
+  const machine = data.machine || {};
+  const isVehicle = machine.equipmentType === 'vehicle' || machine.equipmentType === 'Vehicle' || 
+                   getValueFromRecord(data, 'equipmentType') === 'vehicle';
+  const machineName = machine.nombre || machine.name || machine.nombreMaquina || '';
+  
+  // Get vehicle-specific information from machine record
+  const regoInfo = isVehicle ? machine.rego : null;
+  const rucInfo = isVehicle ? machine.ruc : null;
+  
+  // Get the appropriate current hours/km and next service
+  // For prestart records, use the specific fields based on equipment type
+  const currentHoursOrKm = isVehicle ? kilometerMileage : horasMaquina;
+  const nextServiceValue = isVehicle ? kilometersProximoService : horasProximoService;
+  
+  // Calculate status after template is loaded
   const status = getStatus(data);
+  
+  // Add detailed logging for check items
+  console.log('PrestartDetails - Check items debug:', {
+    hasTemplate: !!template,
+    templateItems: template?.checkItems,
+    allDataKeys: Object.keys(data || {}),
+    checkValues: data.checkValues,
+    datos: data.datos,
+    check: data.check,
+    horasMaquina: horasMaquina,
+    kilometerMileage: kilometerMileage,
+    kilometersProximoService: kilometersProximoService,
+    currentHoursOrKm: currentHoursOrKm,
+    nextServiceValue: nextServiceValue,
+    isVehicle: isVehicle,
+    equipmentTypeFromData: getValueFromRecord(data, 'equipmentType'),
+    machineEquipmentType: machine.equipmentType,
+    aceite: getValueFromRecord(data, 'aceite'),
+    agua: getValueFromRecord(data, 'agua'),
+    cinturonSeguridad: getValueFromRecord(data, 'cinturonSeguridad'),
+    calculatedStatus: status
+  });
+  
+  // Function to format dates
+  const formatDate = (dateString) => {
+    if (!dateString) return 'N/A';
+    try {
+      return new Date(dateString).toLocaleDateString();
+    } catch {
+      return 'Invalid Date';
+    }
+  };
+  
+  // Function to calculate days until expiry
+  const getDaysUntilExpiry = (dateString) => {
+    if (!dateString) return null;
+    try {
+      const expiryDate = new Date(dateString);
+      const today = new Date();
+      const diffTime = expiryDate - today;
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      return diffDays;
+    } catch {
+      return null;
+    }
+  };
+
+  // Debug: Let's see what machine data we have
+  console.log('PrestartDetails - Debug data:', {
+    hasData: !!data,
+    hasMachine: !!data.machine,
+    machineType: machine.equipmentType,
+    prestartEquipmentType: getValueFromRecord(data, 'equipmentType'),
+    isVehicle: isVehicle,
+    machineName: machineName,
+    regoInfo: regoInfo,
+    rucInfo: rucInfo,
+    horasMaquina: horasMaquina,
+    kilometerMileage: kilometerMileage,
+    currentHoursOrKm: currentHoursOrKm,
+    nextServiceValue: nextServiceValue,
+    machineFilters: data.machine?.filters,
+    carbonFilter: data.machine?.filters?.carbon,
+    carbonIsActive: data.machine?.filters?.carbon?.isActive
+  });
 
   // Determine which check items to display
   const checkItemsToDisplay = template?.checkItems 
@@ -181,12 +288,20 @@ const PrestartDetails = ({ data }) => {
             <h3 className="text-sm font-medium text-gray-900">Pre-start Check</h3>
             <p className="text-xs text-gray-500">
               {fecha ? new Date(fecha).toLocaleDateString() : 'Date not specified'}
+              {machineName && ` • ${machineName}`}
             </p>
           </div>
-          <div className={`px-2 py-1 rounded-full text-xs font-medium ${
-              status === 'OK' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
-          }`}>
-            {status}
+          <div className="flex gap-2">
+            {isVehicle && (
+              <div className="px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                Vehicle
+              </div>
+            )}
+            <div className={`px-2 py-1 rounded-full text-xs font-medium ${
+                status === 'OK' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
+            }`}>
+              {status}
+            </div>
           </div>
         </div>
       </div>
@@ -199,15 +314,96 @@ const PrestartDetails = ({ data }) => {
         </div>
         
         <div className="bg-white p-2 rounded-lg border border-gray-200">
-          <div className="text-xs uppercase text-gray-500 font-medium">Hours:</div>
-          <div className="text-sm font-semibold">{horasMaquina || 'N/A'}</div>
+          <div className="text-xs uppercase text-gray-500 font-medium">
+            {isVehicle ? 'Kilometers:' : 'Hours:'}
+          </div>
+          <div className="text-sm font-semibold">
+            {currentHoursOrKm ? 
+              `${currentHoursOrKm} ${isVehicle ? 'km' : 'hrs'}` : 
+              'N/A'
+            }
+          </div>
         </div>
         
         <div className="bg-white p-2 rounded-lg border border-gray-200">
           <div className="text-xs uppercase text-gray-500 font-medium">Next Service:</div>
-          <div className="text-sm font-semibold">{horasProximoService || 'N/A'}</div>
+          <div className="text-sm font-semibold">
+            {nextServiceValue ? 
+              `${nextServiceValue} ${isVehicle ? 'km' : 'hrs'}` : 
+              'N/A'
+            }
+          </div>
         </div>
       </div>
+      
+      {/* Vehicle-specific information (REGO and RUC) */}
+      {isVehicle && (regoInfo || rucInfo) && (
+        <div className="bg-white p-2 rounded-lg border border-gray-200">
+          <h4 className="text-xs uppercase text-gray-500 font-medium mb-2">Vehicle Registration:</h4>
+          <div className="grid grid-cols-2 gap-2">
+            {/* REGO Information */}
+            {regoInfo && (
+              <div className="bg-gray-50 p-2 rounded">
+                <div className="text-xs font-medium text-gray-700 mb-1">REGO</div>
+                <div className="space-y-1">
+                  <div className="text-xs">
+                    <span className="text-gray-500">Expires:</span>
+                    <span className="ml-1 font-medium">
+                      {formatDate(regoInfo.expiryDate)}
+                    </span>
+                  </div>
+                  {(() => {
+                    const daysUntil = getDaysUntilExpiry(regoInfo.expiryDate);
+                    if (daysUntil !== null) {
+                      return (
+                        <div className={`text-xs font-medium ${
+                          daysUntil < 0 ? 'text-red-600' :
+                          daysUntil <= 30 ? 'text-yellow-600' : 'text-green-600'
+                        }`}>
+                          {daysUntil < 0 ? 
+                            `Expired ${Math.abs(daysUntil)} days ago` :
+                            daysUntil === 0 ? 'Expires today' :
+                            `${daysUntil} days remaining`
+                          }
+                        </div>
+                      );
+                    }
+                    return null;
+                  })()}
+                </div>
+              </div>
+            )}
+            
+            {/* RUC Information */}
+            {rucInfo && (
+              <div className="bg-gray-50 p-2 rounded">
+                <div className="text-xs font-medium text-gray-700 mb-1">RUC</div>
+                <div className="space-y-1">
+                  <div className="text-xs">
+                    <span className="text-gray-500">Current:</span>
+                    <span className="ml-1 font-medium">{rucInfo.currentKm || 0} km</span>
+                  </div>
+                  <div className="text-xs">
+                    <span className="text-gray-500">Next Due:</span>
+                    <span className="ml-1 font-medium">{rucInfo.nextDueKm || 'N/A'} km</span>
+                  </div>
+                  {rucInfo.nextDueKm && rucInfo.currentKm && (
+                    <div className={`text-xs font-medium ${
+                      (rucInfo.nextDueKm - rucInfo.currentKm) <= 0 ? 'text-red-600' :
+                      (rucInfo.nextDueKm - rucInfo.currentKm) <= 1000 ? 'text-yellow-600' : 'text-green-600'
+                    }`}>
+                      {rucInfo.nextDueKm - rucInfo.currentKm <= 0 ? 
+                        `Overdue by ${Math.abs(rucInfo.nextDueKm - rucInfo.currentKm)} km` :
+                        `${rucInfo.nextDueKm - rucInfo.currentKm} km remaining`
+                      }
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
       
       {/* Template information if available */}
       {template && (
@@ -267,6 +463,40 @@ const PrestartDetails = ({ data }) => {
           </div>
         )}
       </div>
+      
+      {/* Carbon Filter Information */}
+      {data.machine?.filters?.carbon?.isActive && (
+        <div className="bg-white p-2 rounded-lg border border-gray-200">
+          <h4 className="text-xs uppercase text-gray-500 font-medium mb-2">Carbon Filter Status:</h4>
+          <div className="space-y-2">
+            {(() => {
+              const currentHours = parseInt(horasMaquina) || 0;
+              const carbonFilter = data.machine.filters.carbon;
+              const installationHours = carbonFilter.installationHours || 0;
+              const expectedLifeHours = carbonFilter.expectedLifeHours || 100;
+              const hoursUsed = currentHours - installationHours;
+              const remainingHours = expectedLifeHours - hoursUsed;
+              
+              return (
+                <div className="bg-gray-50 p-2 rounded text-xs">
+                  <div className="flex justify-between items-center">
+                    <span className="font-medium">Carbon Filter</span>
+                    <span className={`font-bold ${
+                      remainingHours <= 0 ? 'text-red-600' :
+                      remainingHours <= 40 ? 'text-yellow-600' : 'text-green-600'
+                    }`}>
+                      {remainingHours > 0 ? 
+                        `${remainingHours}h remaining` : 
+                        `Overdue by ${Math.abs(remainingHours)}h`
+                      }
+                    </span>
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
+        </div>
+      )}
       
       {/* Observations */}
       {observaciones && (

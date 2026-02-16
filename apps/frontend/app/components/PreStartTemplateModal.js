@@ -16,7 +16,8 @@ const PreStartTemplateModal = ({ template, onClose, onSave }) => {
   const [newItem, setNewItem] = useState({
     name: '',
     label: '',
-    required: false
+    required: false,
+    critical: false
   });
 
   // Initialize form with template data if editing
@@ -54,7 +55,8 @@ const PreStartTemplateModal = ({ template, onClose, onSave }) => {
     setNewItem({
       name: '',
       label: '',
-      required: false
+      required: false,
+      critical: false
     });
   };
   
@@ -143,14 +145,15 @@ const PreStartTemplateModal = ({ template, onClose, onSave }) => {
             
             <div className="mb-4 p-4 bg-gray-50 rounded-md">
               <div className="grid grid-cols-12 gap-2 mb-2">
-                <div className="col-span-4"><label className="text-sm font-medium">Field Name</label></div>
-                <div className="col-span-6"><label className="text-sm font-medium">Display Label</label></div>
-                <div className="col-span-1"><label className="text-sm font-medium">Req.</label></div>
-                <div className="col-span-1"></div>
+                <div className="col-span-3"><label className="text-sm font-medium">Field Name</label></div>
+                <div className="col-span-5"><label className="text-sm font-medium">Display Label</label></div>
+                <div className="col-span-1"><label className="text-sm font-medium text-center">Req.</label></div>
+                <div className="col-span-1"><label className="text-sm font-medium text-center text-red-600">Crit.</label></div>
+                <div className="col-span-2"></div>
               </div>
               
               <div className="grid grid-cols-12 gap-2 mb-3 items-center">
-                <div className="col-span-4">
+                <div className="col-span-3">
                   <input
                     type="text"
                     value={newItem.name}
@@ -159,7 +162,7 @@ const PreStartTemplateModal = ({ template, onClose, onSave }) => {
                     placeholder="e.g. brakes"
                   />
                 </div>
-                <div className="col-span-6">
+                <div className="col-span-5">
                   <input
                     type="text"
                     value={newItem.label}
@@ -174,6 +177,15 @@ const PreStartTemplateModal = ({ template, onClose, onSave }) => {
                     checked={newItem.required}
                     onChange={(e) => setNewItem({...newItem, required: e.target.checked})}
                     className="rounded border-gray-300 text-blue-600"
+                  />
+                </div>
+                <div className="col-span-1 text-center">
+                  <input
+                    type="checkbox"
+                    checked={newItem.critical}
+                    onChange={(e) => setNewItem({...newItem, critical: e.target.checked, required: e.target.checked ? true : newItem.required})}
+                    className="rounded border-gray-300 text-red-600"
+                    title="Critical: Machine cannot operate if this fails"
                   />
                 </div>
                 <div className="col-span-1">
@@ -195,7 +207,7 @@ const PreStartTemplateModal = ({ template, onClose, onSave }) => {
                 <div className="space-y-2 max-h-60 overflow-y-auto">
                   {formData.checkItems.map((item) => (
                     <div key={item.id} className="grid grid-cols-12 gap-2 items-center bg-white p-2 rounded">
-                      <div className="col-span-4">
+                      <div className="col-span-3">
                         <input
                           type="text"
                           name="name"
@@ -204,7 +216,7 @@ const PreStartTemplateModal = ({ template, onClose, onSave }) => {
                           className="w-full p-2 border rounded-md"
                         />
                       </div>
-                      <div className="col-span-6">
+                      <div className="col-span-5">
                         <input
                           type="text"
                           name="label"
@@ -222,7 +234,22 @@ const PreStartTemplateModal = ({ template, onClose, onSave }) => {
                           className="rounded border-gray-300 text-blue-600"
                         />
                       </div>
-                      <div className="col-span-1">
+                      <div className="col-span-1 text-center">
+                        <input
+                          type="checkbox"
+                          name="critical"
+                          checked={item.critical || false}
+                          onChange={(e) => {
+                            handleItemChange(e, item.id);
+                            if (e.target.checked) {
+                              handleItemChange({ target: { name: 'required', type: 'checkbox', checked: true } }, item.id);
+                            }
+                          }}
+                          className="rounded border-gray-300 text-red-600"
+                          title="Critical: Machine cannot operate if this fails"
+                        />
+                      </div>
+                      <div className="col-span-2">
                         <button
                           type="button"
                           onClick={() => removeCheckItem(item.id)}

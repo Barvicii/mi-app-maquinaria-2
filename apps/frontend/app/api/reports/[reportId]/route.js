@@ -97,7 +97,7 @@ function generatePrestartCSV(records, machines = [], templates = [], workplace =
     return numA - numB;
   });
   
-  // Define headers with check items columns
+  // Define headers with check items columns - include both hours and kilometers
   const baseHeaders = [
     'Workplace',
     'Date',
@@ -106,10 +106,13 @@ function generatePrestartCSV(records, machines = [], templates = [], workplace =
     'Machine_Name',
     'Machine_Brand',
     'Machine_Model',
+    'Equipment_Type',
     'Template_ID',
     'Operator_Name',
     'Machine_Hours',
-    'Next_Service_Hours'
+    'Machine_Kilometers',
+    'Next_Service_Hours',
+    'Next_Service_Kilometers'
   ];
   
   // Add check items columns (e.g., Item1, Item2, Item3, etc.)
@@ -146,6 +149,26 @@ function generatePrestartCSV(records, machines = [], templates = [], workplace =
     const template = templateMap.get(record.templateId?.toString() || record.templateId) || {};
     const templateId = template.name || record.templateId || '';
     
+    // Determine equipment type
+    const equipmentType = record.equipmentType || 
+                         machine.equipmentType || 
+                         'machine';
+    const isVehicle = equipmentType === 'vehicle';
+    
+    // Get hours/kilometers based on equipment type
+    let machineHours = '';
+    let machineKilometers = '';
+    let nextServiceHours = '';
+    let nextServiceKilometers = '';
+    
+    if (isVehicle) {
+      machineKilometers = record.kilometerMileage || record.kilometersActuales || '';
+      nextServiceKilometers = record.kilometersProximoService || '';
+    } else {
+      machineHours = record.horasMaquina || '';
+      nextServiceHours = record.horasProximoService || '';
+    }
+    
     // Get check items values
     const checkItemValues = sortedCheckItems.map(itemKey => {
       if (record.checkValues && typeof record.checkValues === 'object') {
@@ -166,10 +189,13 @@ function generatePrestartCSV(records, machines = [], templates = [], workplace =
       machineName,
       machineBrand,
       machineModel,
+      isVehicle ? 'Vehicle' : 'Machine',
       templateId,
       record.operador || '',
-      record.horasMaquina || '',
-      record.horasProximoService || ''
+      machineHours,
+      machineKilometers,
+      nextServiceHours,
+      nextServiceKilometers
     ];
     
     const endData = [
@@ -211,9 +237,9 @@ function generatePrestartCSV(records, machines = [], templates = [], workplace =
   return BOM + csvContent;
 }
 
-// Function to generate services CSV with organized columns
+// Function to generate services CSV with organized columns for both machines and vehicles
 function generateServicesCSV(records, machines = [], workplace = null) {
-  // Define headers with clear column names for easy filtering
+  // Define headers with clear column names for easy filtering - include both hours and kilometers
   const headers = [
     'Workplace',
     'Date',
@@ -222,10 +248,13 @@ function generateServicesCSV(records, machines = [], workplace = null) {
     'Machine_Name',
     'Machine_Brand',
     'Machine_Model',
+    'Equipment_Type',
     'Service_Type',
     'Technician',
     'Current_Hours',
+    'Current_Kilometers',
     'Next_Service_Hours',
+    'Next_Service_Kilometers',
     'Works_Performed',
     'Parts_Used',
     'Cost',
@@ -238,7 +267,7 @@ function generateServicesCSV(records, machines = [], workplace = null) {
   // Create machine lookup map for faster access
   const machineMap = new Map(machines.map(m => [m._id?.toString() || m._id, m]));
   
-  // Process data with proper formatting
+  // Process data with proper formatting for both machines and vehicles
   const csvData = records.map(record => {
     // Handle date - services records use 'fecha' or 'createdAt'
     const recordDate = new Date(record.fecha || record.createdAt);
@@ -254,12 +283,31 @@ function generateServicesCSV(records, machines = [], workplace = null) {
     const machineBrand = machine.brand || '';
     const machineModel = machine.model || '';
     
+    // Determine equipment type
+    const equipmentType = record.equipmentType || 
+                         (record.datos && record.datos.equipmentType) ||
+                         machine.equipmentType || 
+                         'machine';
+    const isVehicle = equipmentType === 'vehicle';
+    
     // Get service data from datos object
     const datos = record.datos || {};
     const serviceType = datos.tipoService || record.tipo || '';
     const technician = datos.tecnico || '';
-    const currentHours = datos.horasActuales || '';
-    const nextServiceHours = datos.horasProximoService || '';
+    
+    // Get hours/kilometers based on equipment type
+    let currentHours = '';
+    let currentKilometers = '';
+    let nextServiceHours = '';
+    let nextServiceKilometers = '';
+    
+    if (isVehicle) {
+      currentKilometers = datos.kilometersActuales || record.currentKilometers || '';
+      nextServiceKilometers = datos.kilometersProximoService || record.nextServiceKm || '';
+    } else {
+      currentHours = datos.horasActuales || '';
+      nextServiceHours = datos.horasProximoService || '';
+    }
     
     // Format works performed (array to string)
     const worksPerformed = Array.isArray(datos.trabajosRealizados) 
@@ -279,10 +327,13 @@ function generateServicesCSV(records, machines = [], workplace = null) {
       machineName,
       machineBrand,
       machineModel,
+      isVehicle ? 'Vehicle' : 'Machine',
       serviceType,
       technician,
       currentHours,
+      currentKilometers,
       nextServiceHours,
+      nextServiceKilometers,
       worksPerformed,
       partsUsed,
       cost,
@@ -323,25 +374,31 @@ function generateServicesCSV(records, machines = [], workplace = null) {
   return BOM + csvContent;
 }
 
-// Function to generate comprehensive machines CSV with ALL available data
+// Function to generate comprehensive equipment CSV with ALL available data (machines and vehicles)
 function generateMachinesCSV(records, workplace = null) {
-  // Define comprehensive headers with ALL machine information
+  // Define comprehensive headers with ALL equipment information for both machines and vehicles
   const headers = [
     // Basic Info
     'Workplace',
     'Date',
     'Time',
+    'Equipment_Type',
     'Machine_ID',
     'Machine_Name',
     'Machine_Brand',
     'Machine_Model',
     'Machine_Year',
     'Serial_Number',
+    'Plate_Number', // For vehicles
     
-    // Hours & Service
+    // Hours & Service (Machines)
     'Current_Hours',
     'Last_Service',
     'Next_Service',
+    
+    // Kilometers & Service (Vehicles)
+    'Current_Kilometers',
+    'Next_Service_Kilometers',
     
     // Engine Oil Details
     'Engine_Oil_Type',
@@ -365,6 +422,8 @@ function generateMachinesCSV(records, workplace = null) {
     'Filter_Transmission_Brand',
     'Filter_Fuel',
     'Filter_Fuel_Brand',
+    'Filter_Air',
+    'Filter_Air_Brand',
     
     // Tire Details - Front
     'Tire_Front_Size',
@@ -376,6 +435,11 @@ function generateMachinesCSV(records, workplace = null) {
     'Tire_Rear_Pressure',
     'Tire_Rear_Brand',
     
+    // Vehicle-specific fields
+    'RUC_Current_KM',
+    'RUC_Next_Due_KM',
+    'REGO_Expiry_Date',
+    
     // Additional Info
     'Prestart_Template_ID',
     'Created_By',
@@ -383,13 +447,17 @@ function generateMachinesCSV(records, workplace = null) {
     'Source'
   ];
   
-  // Process data with ALL available information
+  // Process data with ALL available information for both machines and vehicles
   const csvData = records.map(record => {
     // Handle date
     const recordDate = new Date(record.createdAt || record.updatedAt || new Date());
     const dateStr = recordDate.toLocaleDateString('en-CA'); // YYYY-MM-DD format
     const timeStr = recordDate.toLocaleTimeString('en-US', { hour12: false }); // HH:MM:SS format
     const weekDay = recordDate.toLocaleDateString('en-US', { weekday: 'long' });
+    
+    // Determine equipment type
+    const equipmentType = record.equipmentType || 'machine';
+    const isVehicle = equipmentType === 'vehicle';
     
     // Extract nested object data safely
     const engineOil = record.engineOil || {};
@@ -400,23 +468,33 @@ function generateMachinesCSV(records, workplace = null) {
     const tireFront = tires.front || {};
     const tireRear = tires.rear || {};
     
+    // Vehicle-specific data
+    const ruc = record.ruc || {};
+    const rego = record.rego || {};
+    
     // Build comprehensive row data
     return [
       // Basic Info
       record.workplaceName || record.workplace || workplace || 'All Workplaces',
       dateStr,
       timeStr,
+      isVehicle ? 'Vehicle' : 'Machine',
       record.customId || record.machineId || record._id?.toString() || '',
       record.name || record.model || '',
       record.brand || '',
       record.model || '',
       record.year || '',
       record.serialNumber || '',
+      isVehicle ? (record.plateNumber || record.patente || '') : '', // Plate number only for vehicles
       
-      // Hours & Service
-      record.currentHours || '',
-      record.lastService || '',
-      record.nextService || '',
+      // Hours & Service (Machines)
+      isVehicle ? '' : (record.currentHours || ''),
+      isVehicle ? '' : (record.lastService || ''),
+      isVehicle ? '' : (record.nextService || ''),
+      
+      // Kilometers & Service (Vehicles)
+      isVehicle ? (record.currentKilometers || record.kilometersActuales || '') : '',
+      isVehicle ? (record.nextServiceKm || record.proximoServiceKm || '') : '',
       
       // Engine Oil Details
       engineOil.type || '',
@@ -440,6 +518,8 @@ function generateMachinesCSV(records, workplace = null) {
       filters.transmissionBrand || '',
       filters.fuel || '',
       filters.fuelBrand || '',
+      record.air || filters.air || '', // Air filter can be at root level or in filters
+      record.airBrand || filters.airBrand || '',
       
       // Tire Details - Front
       tireFront.size || '',
@@ -450,6 +530,11 @@ function generateMachinesCSV(records, workplace = null) {
       tireRear.size || '',
       tireRear.pressure || '',
       tireRear.brand || '',
+      
+      // Vehicle-specific fields
+      isVehicle ? (ruc.currentKm || '') : '',
+      isVehicle ? (ruc.nextDueKm || '') : '',
+      isVehicle ? (rego.expiryDate ? new Date(rego.expiryDate).toLocaleDateString('en-CA') : '') : '',
       
       // Additional Info
       record.prestartTemplateId || '',
@@ -592,8 +677,15 @@ export async function GET(request, context) {
           }
         }
         
-        // Convert string IDs to ObjectId for diesel records
+        // Convert string IDs to ObjectId for proper querying
+        if (query._id && typeof query._id === 'string') {
+          query._id = ObjectId.isValid(query._id) ? new ObjectId(query._id) : query._id;
+          console.log('[API] Converted _id to ObjectId:', query._id);
+        }
+        
+        // For diesel reports, userId is stored as ObjectId but maquinaId is stored as string
         if (reportMeta.type === 'diesel') {
+          console.log('[API] Diesel report - converting userId to ObjectId, keeping maquinaId as string');
           if (query.userId) {
             if (typeof query.userId === 'string') {
               query.userId = ObjectId.isValid(query.userId) ? new ObjectId(query.userId) : query.userId;
@@ -601,11 +693,7 @@ export async function GET(request, context) {
               query.userId.$in = query.userId.$in.map(id => ObjectId.isValid(id) ? new ObjectId(id) : id);
             }
           }
-          if (query.maquinaId) {
-            if (typeof query.maquinaId === 'string') {
-              query.maquinaId = ObjectId.isValid(query.maquinaId) ? new ObjectId(query.maquinaId) : query.maquinaId;
-            }
-          }
+          // maquinaId stays as string since it's stored as string in diesel_records
         }
       } catch (error) {
         console.log('[API] Error parsing saved query, building new one:', error);
@@ -646,8 +734,19 @@ export async function GET(request, context) {
     // Añadir filtro de máquina si existe
     if (reportMeta.machineId) {
       if (reportMeta.type === 'diesel') {
-        // For diesel reports, use the same machine filtering as /api/diesel and convert to ObjectId
-        query.maquinaId = ObjectId.isValid(reportMeta.machineId) ? new ObjectId(reportMeta.machineId) : reportMeta.machineId;
+        // For diesel reports, maquinaId is stored as string in database
+        query.maquinaId = reportMeta.machineId;
+      } else if (reportMeta.type === 'machine') {
+        // For machine reports, if the saved query already has _id filter, don't add additional filters
+        if (!query._id) {
+          // Only add machine filters if there's no _id in the saved query
+          query.$or = [
+            { machineId: reportMeta.machineId },
+            { maquinaId: reportMeta.machineId },
+            { _id: ObjectId.isValid(reportMeta.machineId) ? new ObjectId(reportMeta.machineId) : reportMeta.machineId }
+          ];
+        }
+        // If query._id exists, use it as is - don't add conflicting filters
       } else {
         // For workplace reports, combine userId with machine filter
         if (query.userId) {
@@ -763,6 +862,12 @@ export async function GET(request, context) {
     }
 
     console.log('[API] Final download query:', JSON.stringify(query, null, 2));
+    
+    // Debug ObjectId types before query execution
+    if (reportMeta.type === 'diesel') {
+      console.log('[API] Diesel query userId type:', typeof query.userId, query.userId);
+      console.log('[API] Diesel query maquinaId type:', typeof query.maquinaId, query.maquinaId);
+    }
 
     // Special handling for organizational reports - remove automatic date filters
     // if no explicit dates were provided by user
@@ -870,7 +975,7 @@ export async function GET(request, context) {
       }
     }
 
-    // For prestart and services reports, fetch additional machine data
+    // For prestart and services reports, fetch additional machine and vehicle data
     let machines = [];
     let templates = [];
     if ((reportMeta.type === 'prestart' || reportMeta.type === 'service' || reportMeta.type === 'services') && reportData.length > 0) {
@@ -879,13 +984,21 @@ export async function GET(request, context) {
         item.maquinaId || item.machineId || item.datos?.machineId
       ).filter(Boolean))];
       
-      // Fetch machine data
+      // Fetch both machine and vehicle data
       if (machineIds.length > 0) {
         const machineObjectIds = machineIds.map(id => ObjectId.isValid(id) ? new ObjectId(id) : id).filter(Boolean);
         if (machineObjectIds.length > 0) {
-          machines = await db.collection('machines').find({
+          // Fetch from both machines and vehicles collections
+          const machinesData = await db.collection('machines').find({
             _id: { $in: machineObjectIds }
           }).toArray();
+          
+          const vehiclesData = await db.collection('vehicles').find({
+            _id: { $in: machineObjectIds }
+          }).toArray();
+          
+          // Combine machines and vehicles data
+          machines = [...machinesData, ...vehiclesData];
         }
       }
       
@@ -900,9 +1013,9 @@ export async function GET(request, context) {
             }).toArray();
           }
         }
-        console.log(`[API] Fetched ${machines.length} machines and ${templates.length} templates for prestart report`);
+        console.log(`[API] Fetched ${machines.length} equipment (machines + vehicles) and ${templates.length} templates for prestart report`);
       } else if (reportMeta.type === 'service' || reportMeta.type === 'services') {
-        console.log(`[API] Fetched ${machines.length} machines for services report`);
+        console.log(`[API] Fetched ${machines.length} equipment (machines + vehicles) for services report`);
       }
     }
 

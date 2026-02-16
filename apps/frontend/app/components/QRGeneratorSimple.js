@@ -282,7 +282,7 @@ export default function QRGeneratorSimple({ maquinas }) {
       `${protocol}//${hostname}:${port}` : 
       `${protocol}//${hostname}`;
   
-    const fullUrl = `${baseUrl}/service/${id}`;
+    const fullUrl = `${baseUrl}/service/${id}?public=true`;
     return fullUrl;
   };
 

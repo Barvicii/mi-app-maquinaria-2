@@ -71,15 +71,31 @@ export async function GET(request) {
         return false;
       };
       
+      // Helper function to get equipment type
+      const getEquipmentType = () => {
+        if (prestart.equipmentType) return prestart.equipmentType;
+        if (data.equipmentType) return data.equipmentType;
+        return 'machine'; // default fallback
+      };
+      
+      const equipmentType = getEquipmentType();
+      const isVehicle = equipmentType === 'vehicle';
+      
       const result = {
         _id: prestart._id.toString(),
         machineId: prestart.maquinaId || prestart.machineId || '',
         operator: data.operador || '',
-        hours: data.horasMaquina || '',
         date: prestart.fecha ? new Date(prestart.fecha).toISOString() :
               (prestart.createdAt ? new Date(prestart.createdAt).toISOString() : ''),
         observations: data.observaciones || '',
         status: data.estado || 'Unknown',
+        equipmentType: equipmentType,
+        
+        // Hours/Kilometers based on equipment type
+        hours: isVehicle ? '' : (data.horasMaquina || ''),
+        kilometers: isVehicle ? (data.kilometerMileage || data.kilometersActuales || '') : '',
+        nextServiceHours: isVehicle ? '' : (data.horasProximoService || ''),
+        nextServiceKilometers: isVehicle ? (data.kilometersProximoService || '') : '',
         
         // Check items
         aceite: getCheckValue('aceite'),

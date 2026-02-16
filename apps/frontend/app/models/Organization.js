@@ -15,6 +15,11 @@ const organizationSchema = new mongoose.Schema({
     default: 10,
     min: 1
   },
+  maxMachines: {
+    type: Number,
+    default: 20,
+    min: 1
+  },
   currentUserCount: {
     type: Number,
     default: 0

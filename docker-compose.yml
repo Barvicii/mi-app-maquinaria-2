@@ -1,0 +1,27 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: ./apps/frontend
+      dockerfile: Dockerfile
+    container_name: maquinaria-app
+    restart: always
+    ports:
+      - "${APP_PORT:-3005}:3000"
+    env_file:
+      - .env
+    depends_on:
+      - mongo
+
+  mongo:
+    image: mongo:latest
+    container_name: maquinaria-mongo
+    restart: always
+    ports:
+      - "${MONGO_PORT:-27018}:27017"
+    volumes:
+      - mongo-data:/data/db
+
+volumes:
+  mongo-data:

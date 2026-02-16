@@ -259,6 +259,84 @@ export async function POST(request) {
     
     console.log(`[API] Services - Saved with ID: ${result.insertedId}`);
     
+    // Handle chemical filters replacement if applicable
+    if (data.chemicalFiltersReplaced && data.newFilters && machine) {
+      console.log('[API] Services - Processing chemical filters replacement');
+      
+      try {
+        const currentHours = parseInt(data.horasActuales) || 0;
+        const serviceDate = new Date();
+        const serviceId = result.insertedId;
+        
+        // Process each filter that was marked for replacement
+        const newActiveFilters = [];
+        const filterHistory = machine.chemicalFilters?.history || [];
+        
+        for (const filterData of data.newFilters) {
+          if (filterData.replace && filterData.type) {
+            // Add to active filters
+            const newFilter = {
+              type: filterData.type,
+              brand: filterData.brand || '',
+              partNumber: filterData.partNumber || '',
+              installationDate: serviceDate,
+              installationHours: currentHours,
+              isActive: true
+            };
+            newActiveFilters.push(newFilter);
+            
+            // Find and deactivate old filter of same type
+            const oldFilter = machine.chemicalFilters?.currentFilters?.find(
+              f => f.type === filterData.type && f.isActive
+            );
+            
+            if (oldFilter) {
+              // Add old filter to history
+              filterHistory.push({
+                type: oldFilter.type,
+                brand: oldFilter.brand,
+                partNumber: oldFilter.partNumber,
+                installationDate: oldFilter.installationDate,
+                installationHours: oldFilter.installationHours,
+                replacementDate: serviceDate,
+                replacementHours: currentHours,
+                replacedBy: data.tecnico || 'Unknown',
+                serviceId: serviceId
+              });
+            }
+          }
+        }
+        
+        // Update machine with new filter data
+        if (newActiveFilters.length > 0) {
+          const currentActiveFilters = machine.chemicalFilters?.currentFilters?.filter(
+            f => !newActiveFilters.some(nf => nf.type === f.type)
+          ) || [];
+          
+          const updatedFilters = {
+            ...machine.chemicalFilters,
+            currentFilters: [...currentActiveFilters, ...newActiveFilters],
+            history: filterHistory
+          };
+          
+          await db.collection('machines').updateOne(
+            { _id: machine._id },
+            { 
+              $set: { 
+                chemicalFilters: updatedFilters,
+                updatedAt: serviceDate
+              } 
+            }
+          );
+          
+          console.log(`[API] Services - Updated chemical filters for machine ${machine._id}`);
+        }
+      } catch (filterError) {
+        console.error('[API] Services - Error processing chemical filters:', filterError);
+        // Don't fail the entire service creation, just log the error
+      }
+    }
+    
     // Devolver el servicio creado
     return NextResponse.json({ 
       _id: result.insertedId,

@@ -5,6 +5,17 @@ import { connectDB } from "@/lib/mongodb";
 import { ObjectId } from 'mongodb';
 import { sanitizeSearchFilters, searchRateLimiter } from "@/lib/security";
 
+// Fields that are safe to expose publicly (via QR scan)
+const PUBLIC_SAFE_FIELDS = {
+  _id: 1, machineId: 1, maquinaId: 1, customId: 1, Machine_ID: 1,
+  model: 1, modelo: 1, brand: 1, serialNumber: 1, serie: 1,
+  year: 1, currentHours: 1, horasActuales: 1,
+  engineOil: 1, hydraulicOil: 1, transmissionOil: 1,
+  filters: 1, chemicalFilters: 1, tires: 1,
+  lastService: 1, nextService: 1, proximoService: 1,
+  prestartTemplateId: 1
+};
+
 // Helper function to check organization suspension
 const checkOrganizationSuspension = (session) => {
   if (session.user.role !== 'SUPER_ADMIN' && session.user.organizationSuspended === true) {
@@ -135,7 +146,10 @@ export async function GET(request) {
     console.log('Machines query with filters:', JSON.stringify(query));
     console.log('User role:', userRole, 'Organization:', userOrganization);
     
-    const machines = await db.collection('machines').find(query).toArray();
+    const machines = await db.collection('machines')
+      .find(query)
+      .project(publicAccess ? PUBLIC_SAFE_FIELDS : {})
+      .toArray();
     return NextResponse.json(machines);
   } catch (error) {
     console.error('Error fetching machines:', error);
@@ -239,6 +253,49 @@ export async function PUT(request) {
     
     // Eliminar campos que no se deben actualizar
     delete data._id; // No actualizar el _id
+    
+    // Special handling for chemical filters
+    if (data.chemicalFilters && data.chemicalFilters.hasFilters) {
+      const currentHours = data.currentHours || existingMachine.currentHours || 0;
+      const expectedLifeHours = data.chemicalFilters.expectedLifeHours || 100;
+      
+      // If hasFilters is enabled and there are no current filters, create them automatically
+      if (!data.chemicalFilters.currentFilters || data.chemicalFilters.currentFilters.length === 0) {
+        const activeFilters = [];
+        
+        // Create air filter if configured
+        if (data.filters && data.filters.air) {
+          activeFilters.push({
+            type: 'air',
+            partNumber: data.filters.air,
+            brand: data.filters.airBrand || 'Unknown',
+            installationDate: new Date(),
+            installationHours: currentHours,
+            expectedLifeHours: expectedLifeHours,
+            isActive: true
+          });
+        }
+        
+        // Create carbon filter if configured
+        if (data.filters && data.filters.carbon) {
+          activeFilters.push({
+            type: 'carbon',
+            partNumber: data.filters.carbon,
+            brand: data.filters.carbonBrand || 'Unknown',
+            installationDate: new Date(),
+            installationHours: currentHours,
+            expectedLifeHours: expectedLifeHours,
+            isActive: true
+          });
+        }
+        
+        // If we have filters to create, add them
+        if (activeFilters.length > 0) {
+          data.chemicalFilters.currentFilters = activeFilters;
+          console.log('[API] Auto-created chemical filters:', activeFilters);
+        }
+      }
+    }
     
     // Actualizar la máquina
     const result = await db.collection('machines').updateOne(

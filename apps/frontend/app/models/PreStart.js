@@ -1,9 +1,19 @@
 import mongoose from 'mongoose';
 
 const prestartSchema = new mongoose.Schema({
+  // Core fields
   horasMaquina: { type: String, required: true },
+  kilometerMileage: String,
   operador: { type: String, required: true },
   observaciones: String,
+
+  // Dynamic check values (key-value pairs from template)
+  checkValues: { type: mongoose.Schema.Types.Mixed, default: {} },
+
+  // Template reference
+  templateId: { type: mongoose.Schema.Types.ObjectId, ref: 'PrestartTemplate' },
+
+  // Legacy boolean fields (backward compatibility with existing records)
   aceite: Boolean,
   agua: Boolean,
   neumaticos: Boolean,
@@ -12,36 +22,35 @@ const prestartSchema = new mongoose.Schema({
   frenos: Boolean,
   extintores: Boolean,
   cinturonSeguridad: Boolean,
+
+  // Status & date
   fecha: { type: Date, default: Date.now },
-  estado: { 
-    type: String, 
-    enum: ['OK', 'Requiere atención'],
-    default: 'OK'
-  },
-  machineId: { 
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Machine',
-    required: false,
-    index: true
-  },
-  maquinaId: {
-    type: String,
-    required: false
-  },
-  maquina: {
-    type: String,
-    required: false
-  },
-  userId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User'
-  },
-  organization: {
-    type: String,
-    default: 'Default'
+  estado: { type: String, enum: ['OK', 'Requiere atención'], default: 'OK' },
+  hasCriticalFailure: { type: Boolean, default: false },
+
+  // Equipment info
+  equipmentType: { type: String, enum: ['machinery', 'vehicle'], default: 'machinery' },
+  horasProximoService: String,
+  kilometersProximoService: String,
+
+  // Machine reference
+  machineId: { type: mongoose.Schema.Types.ObjectId, ref: 'Machine', index: true },
+  maquinaId: String,
+  maquina: String,
+
+  // User & org
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  organization: { type: String, default: 'Default' },
+
+  // Operator info (for linked operators)
+  operadorInfo: {
+    id: mongoose.Schema.Types.ObjectId,
+    nombre: String,
+    apellido: String
   }
 }, {
-  timestamps: true
+  timestamps: true,
+  strict: false
 });
 
 // Middleware para garantizar consistencia entre machineId y maquinaId

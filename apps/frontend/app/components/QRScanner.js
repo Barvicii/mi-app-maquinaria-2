@@ -43,7 +43,7 @@ export default function QRScanner() {
         }
       }
       
-      // IMPORTANTE: Siempre incluir public=true en la navegación
+      // Navegar a la página de servicio con acceso público
       router.push(`/service/${machineId}?public=true`);
     }, (error) => {
       console.warn('QR Scan error:', error);

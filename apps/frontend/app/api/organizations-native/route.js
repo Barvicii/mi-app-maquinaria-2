@@ -78,7 +78,16 @@ export async function GET(request) {
     const organizationsWithCounts = await Promise.all(
       organizations.map(async (org) => {
         const userCount = await User.countDocuments({ organizationId: org._id });
-        const machineCount = await Machine.countDocuments({ organizationId: org._id });
+        
+        // Buscar máquinas por organizationId O por organization (string)
+        const machineCount = await Machine.countDocuments({ 
+          $or: [
+            { organizationId: org._id },
+            { organization: org.name }
+          ]
+        });
+        
+        console.log(`📊 Org ${org.name}: users=${userCount}, machines=${machineCount}, orgId=${org._id}`);
         
         // Verificar si la organización está suspendida
         const suspendedUser = await User.findOne({ 
@@ -89,7 +98,8 @@ export async function GET(request) {
         return {
           ...org.toObject(),
           currentUserCount: userCount,
-          machinesCount: machineCount,
+          currentMachineCount: machineCount,
+          machinesCount: machineCount, // Keep for backward compatibility
           suspended: !!suspendedUser
         };
       })
@@ -127,7 +137,7 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Acceso denegado' }, { status: 403 });
     }
 
-    const { name, description, maxUsers, adminEmail, adminName, isMultiUser } = await request.json();
+    const { name, description, maxUsers, maxMachines, adminEmail, adminName, isMultiUser } = await request.json();
 
     if (!name || !adminEmail || !adminName) {
       return NextResponse.json(
@@ -184,6 +194,7 @@ export async function POST(request) {
       name,
       description: description || '',
       maxUsers: finalMaxUsers,
+      maxMachines: maxMachines || 20, // Default 20 machines if not specified
       adminId: savedUser._id,
       createdBy: session.user.id,
       isMultiUser: finalIsMultiUser // Usar el valor corregido

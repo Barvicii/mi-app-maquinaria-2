@@ -122,6 +122,68 @@ export async function POST(request) {
     
     console.log(`[API] Prestart created successfully with ID: ${result.insertedId}`);
     
+    // Actualizar kilómetros del vehículo si es necesario
+    try {
+      if (data.equipmentType === 'vehicle' && data.kilometerMileage) {
+        const machineUpdate = {
+          currentKilometers: parseInt(data.kilometerMileage),
+          updatedAt: new Date()
+        };
+        
+        // También actualizar RUC alerts si existen
+        const machine = await db.collection('machines').findOne({
+          $or: [
+            { _id: ObjectId.isValid(data.maquinaId) ? new ObjectId(data.maquinaId) : null },
+            { machineId: data.maquinaId },
+            { customId: data.maquinaId }
+          ]
+        });
+        
+        if (machine && machine.ruc?.nextDueKm) {
+          const remainingKm = machine.ruc.nextDueKm - parseInt(data.kilometerMileage);
+          machineUpdate['ruc.currentKm'] = parseInt(data.kilometerMileage);
+          machineUpdate['ruc.alertStatus'] = remainingKm <= 0 ? 'expired' : 
+                                             remainingKm <= 500 ? 'urgent' : 
+                                             remainingKm <= 1000 ? 'warning' : 'ok';
+        }
+        
+        await db.collection('machines').updateOne(
+          {
+            $or: [
+              { _id: ObjectId.isValid(data.maquinaId) ? new ObjectId(data.maquinaId) : null },
+              { machineId: data.maquinaId },
+              { customId: data.maquinaId }
+            ]
+          },
+          { $set: machineUpdate }
+        );
+        
+        console.log(`[API] Updated vehicle kilometers: ${data.kilometerMileage}`);
+      } else if (data.equipmentType !== 'vehicle' && data.horasMaquina) {
+        // Para maquinaria, actualizar horas
+        await db.collection('machines').updateOne(
+          {
+            $or: [
+              { _id: ObjectId.isValid(data.maquinaId) ? new ObjectId(data.maquinaId) : null },
+              { machineId: data.maquinaId },
+              { customId: data.maquinaId }
+            ]
+          },
+          { 
+            $set: { 
+              currentHours: parseInt(data.horasMaquina),
+              updatedAt: new Date()
+            } 
+          }
+        );
+        
+        console.log(`[API] Updated machine hours: ${data.horasMaquina}`);
+      }
+    } catch (updateError) {
+      console.error('[API] Error updating machine data:', updateError);
+      // Don't fail the prestart creation if machine update fails
+    }
+    
     // Check for alerts after successful creation
     try {
       const createdPrestart = { ...prestartData, _id: result.insertedId };

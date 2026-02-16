@@ -1,5 +1,5 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { MongoClient } from 'mongodb';
+import { NextResponse } from 'next/server';
+import { connectDB } from '@/lib/mongodb';
 import bcrypt from 'bcryptjs';
 
 export async function GET(request) {
@@ -7,102 +7,61 @@ export async function GET(request) {
 }
 
 export async function POST(request) {
-  // Headers to bypass Vercel authentication
   const headers = {
     'Content-Type': 'application/json',
     'Cache-Control': 'no-cache, no-store, must-revalidate',
-    'Pragma': 'no-cache',
-    'Expires': '0',
-    'X-Vercel-No-Auth': 'true',
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type',
   };
 
-  let client;
-  
   try {
-    if (!process.env.MONGODB_URI) {
-      return NextResponse.json({
-        success: false,
-        error: 'MongoDB URI not configured'
-      }, { status: 500, headers });
+    // Require a setup secret to prevent unauthorized admin creation
+    const setupSecret = process.env.ADMIN_SETUP_SECRET;
+    if (!setupSecret) {
+      return NextResponse.json({ success: false, error: 'Setup not available' }, { status: 403, headers });
     }
 
-    client = new MongoClient(process.env.MONGODB_URI);
-    await client.connect();
+    const { searchParams } = new URL(request.url);
+    const providedSecret = searchParams.get('secret');
+    if (providedSecret !== setupSecret) {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 403, headers });
+    }
 
-    const db = client.db('orchardservice');
-    const usersCollection = db.collection('users');
+    const adminEmail = process.env.ADMIN_EMAIL;
+    const adminPassword = process.env.ADMIN_PASSWORD;
+    if (!adminEmail || !adminPassword) {
+      return NextResponse.json({ success: false, error: 'Admin credentials not configured in env' }, { status: 500, headers });
+    }
 
-    // Check if admin already exists
-    const existingAdmin = await usersCollection.findOne({ 
-      email: 'orchardservices96@gmail.com' 
-    });
+    const db = await connectDB();
 
+    const existingAdmin = await db.collection('users').findOne({ email: adminEmail });
     if (existingAdmin) {
       return NextResponse.json({
         success: true,
         message: 'Admin user already exists',
-        user: {
-          id: existingAdmin._id.toString(),
-          email: existingAdmin.email,
-          name: existingAdmin.name,
-          role: existingAdmin.role
-        }
+        user: { id: existingAdmin._id.toString(), email: existingAdmin.email, role: existingAdmin.role }
       }, { status: 200, headers });
     }
 
-    // Create admin user
-    const hashedPassword = await bcrypt.hash('BaltonInalen321!', 12);
-    
-    const newAdmin = {
-      email: 'orchardservices96@gmail.com',
+    const hashedPassword = await bcrypt.hash(adminPassword, 12);
+    const result = await db.collection('users').insertOne({
+      email: adminEmail,
       password: hashedPassword,
       name: 'Super Admin',
       role: 'SUPER_ADMIN',
       active: true,
       createdAt: new Date(),
       updatedAt: new Date()
-    };
-
-    const result = await usersCollection.insertOne(newAdmin);
+    });
 
     return NextResponse.json({
       success: true,
       message: 'Admin user created successfully',
-      user: {
-        id: result.insertedId.toString(),
-        email: newAdmin.email,
-        name: newAdmin.name,
-        role: newAdmin.role
-      },
-      timestamp: new Date().toISOString()
+      user: { id: result.insertedId.toString(), email: adminEmail, role: 'SUPER_ADMIN' }
     }, { status: 201, headers });
 
   } catch (error) {
     console.error('Error creating admin:', error);
-    return NextResponse.json({
-      success: false,
-      error: error.message,
-      timestamp: new Date().toISOString()
-    }, { status: 500, headers });
-
-  } finally {
-    if (client) {
-      await client.close();
-    }
+    return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500, headers });
   }
-}
-
-export async function OPTIONS(request) {
-  return new NextResponse(null, {
-    status: 200,
-    headers: {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type',
-    },
-  });
 }
 

@@ -84,6 +84,7 @@ export async function POST(request) {
     
     // Determine which collection to query based on report type
     let collection;
+    let includeVehicles = false;
     switch(type) {
       case 'prestart':
         collection = 'prestart';
@@ -94,6 +95,7 @@ export async function POST(request) {
         break;
       case 'machine':
         collection = 'machines';
+        includeVehicles = true; // Include vehicles in machine reports
         break;
       case 'diesel':
         collection = 'diesel_records';
@@ -145,13 +147,44 @@ export async function POST(request) {
     switch(type) {
       case 'diesel':
         // Diesel records use credentialId for organization filtering
+        console.log(`[DEBUG] Diesel case - credentialId: ${session.user.credentialId}, targetUserIds.length: ${targetUserIds.length}, workplace: ${workplace}`);
         if (targetUserIds.length === 1 && session.user.credentialId && !workplace) {
           query.credentialId = session.user.credentialId;
+          console.log(`[DEBUG] Using credentialId: ${session.user.credentialId}`);
         } else {
-          // Convert userId to ObjectId for diesel records since they're stored as ObjectId
+          // Convert userId to ObjectId for diesel records since they're stored as ObjectId in the database
           const userObjectIds = targetUserIds.map(id => ObjectId.isValid(id) ? new ObjectId(id) : id);
           query.userId = userObjectIds.length === 1 ? userObjectIds[0] : { $in: userObjectIds };
+          console.log(`[DEBUG] Converted userId to ObjectId:`, query.userId);
         }
+        break;
+      case 'machine':
+        // For machine reports, use the same logic as /api/reports/machines
+        // If not admin, filter by organization using credentialId
+        if (session.user.role !== 'SUPER_ADMIN') {
+          // Use credentialId if available, otherwise fall back to userId for machines/vehicles without credentialId
+          if (session.user.credentialId) {
+            query.credentialId = session.user.credentialId;
+          } else {
+            // Fallback to userId for users without credentialId
+            // Use both string and ObjectId format to ensure compatibility
+            const userIds = targetUserIds.map(id => ObjectId.isValid(id) ? [id, new ObjectId(id)] : [id]).flat();
+            if (userIds.length === 2) {
+              query.$or = [
+                { userId: userIds[0] },
+                { userId: userIds[1] },
+                { createdBy: userIds[0] },
+                { createdBy: userIds[1] }
+              ];
+            } else {
+              query.$or = [
+                { userId: { $in: userIds } },
+                { createdBy: { $in: userIds } }
+              ];
+            }
+          }
+        }
+        // Don't add userId filter for machines if credentialId is being used
         break;
       default:
         query.userId = targetUserIds.length === 1 ? targetUserIds[0] : { $in: targetUserIds };
@@ -288,8 +321,25 @@ export async function POST(request) {
       // Different collections use different field names for machine ID
       switch(type) {
         case 'diesel':
-          // Convert machineId to ObjectId for diesel records since they're stored as ObjectId
-          query.maquinaId = ObjectId.isValid(machineId) ? new ObjectId(machineId) : machineId;
+          // For diesel records, use string format for both userId and machineId as they're stored as strings
+          console.log(`[DEBUG] Before maquinaId conversion - query:`, JSON.stringify(query, null, 2));
+          query.maquinaId = machineId; // Keep as string
+          console.log(`[DEBUG] After maquinaId conversion - query.maquinaId:`, query.maquinaId);
+          // Ensure userId remains as string for diesel records since they're stored as strings
+          console.log(`[DEBUG] Final query after machine filter:`, JSON.stringify(query, null, 2));
+          break;
+        case 'machine':
+          // For machine reports, the machineId could be either the MongoDB _id or the custom machineId
+          if (ObjectId.isValid(machineId)) {
+            // If it's a valid ObjectId, search by _id
+            query._id = new ObjectId(machineId);
+          } else {
+            // If it's not an ObjectId, search by custom machineId
+            query.$or = [
+              { machineId: machineId },
+              { maquinaId: machineId }
+            ];
+          }
           break;
         case 'service':
         case 'services':
@@ -440,8 +490,37 @@ export async function POST(request) {
     }
     
     // Execute the query
-    const results = await db.collection(collection).find(query).toArray();
-    console.log(`Query returned ${results.length} documents`);
+    let results = [];
+    
+    if (includeVehicles && type === 'machine') {
+      // For machine reports, query both machines and vehicles collections
+      const machines = await db.collection('machines').find(query).toArray();
+      const vehicles = await db.collection('vehicles').find(query).toArray();
+      
+      // Add equipment type to distinguish between machines and vehicles
+      const machinesWithType = machines.map(machine => ({ ...machine, equipmentType: 'machine' }));
+      const vehiclesWithType = vehicles.map(vehicle => ({ ...vehicle, equipmentType: 'vehicle' }));
+      
+      results = [...machinesWithType, ...vehiclesWithType];
+      console.log(`Query returned ${machines.length} machines and ${vehicles.length} vehicles`);
+    } else {
+      // For diesel reports, ensure userId is ObjectId but maquinaId stays as string
+      if (type === 'diesel') {
+        console.log('[DEBUG] Diesel report - ensuring userId is ObjectId, maquinaId stays string');
+        if (query.userId && typeof query.userId === 'string' && ObjectId.isValid(query.userId)) {
+          query.userId = new ObjectId(query.userId);
+        }
+        // maquinaId stays as string - no conversion needed
+      }
+      
+      // Normal single collection query
+      console.log('[DEBUG] Query just before execution:', JSON.stringify(query, null, 2));
+      console.log('[DEBUG] Query userId type before execution:', typeof query.userId, query.userId);
+      console.log('[DEBUG] Query maquinaId type before execution:', typeof query.maquinaId, query.maquinaId);
+      
+      results = await db.collection(collection).find(query).toArray();
+      console.log(`Query returned ${results.length} documents from ${collection}`);
+    }
     
     // Aplanar los resultados antes de enviarlos
     const flattenedResults = results.map(item => flattenObject(item));
@@ -899,10 +978,25 @@ async function handleSpecificOrganizationalReport(session, { type, fromDate, toD
     
     console.log(`[ADMIN] Querying ${collection} with:`, JSON.stringify(baseQuery, null, 2));
     
-    // Fetch the data
-    const data = await db.collection(collection).find(baseQuery).toArray();
+    // Fetch the data - for machines, also include vehicles
+    let data = [];
     
-    console.log(`[ADMIN] Found ${data.length} records for organizational ${type} report`);
+    if (type === 'machine') {
+      // For machine reports, query both machines and vehicles collections
+      const machines = await db.collection('machines').find(baseQuery).toArray();
+      const vehicles = await db.collection('vehicles').find(baseQuery).toArray();
+      
+      // Add equipment type to distinguish between machines and vehicles
+      const machinesWithType = machines.map(machine => ({ ...machine, equipmentType: 'machine' }));
+      const vehiclesWithType = vehicles.map(vehicle => ({ ...vehicle, equipmentType: 'vehicle' }));
+      
+      data = [...machinesWithType, ...vehiclesWithType];
+      console.log(`[ADMIN] Found ${machines.length} machines and ${vehicles.length} vehicles for organizational report`);
+    } else {
+      // Normal single collection query
+      data = await db.collection(collection).find(baseQuery).toArray();
+      console.log(`[ADMIN] Found ${data.length} records for organizational ${type} report`);
+    }
     
     // Create a map of userId to user info for quick lookup
     const userMap = new Map();

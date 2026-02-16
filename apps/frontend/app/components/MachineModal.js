@@ -42,8 +42,13 @@ const MachineModal = ({ show, type, machine, onClose, onSubmit }) => {
       transmission: '',
       transmissionBrand: '',
       fuel: '',
-      fuelBrand: ''
+      fuelBrand: '',
+      air: '',
+      airBrand: '',
+      carbon: '',
+      carbonBrand: ''
     },
+    carbonFilterLifeHours: 100,
     tires: {
       front: {
         size: '',
@@ -93,8 +98,13 @@ const MachineModal = ({ show, type, machine, onClose, onSubmit }) => {
           transmission: machine.filters?.transmission || (machine.filtros?.transmision || ''),
           transmissionBrand: machine.filters?.transmissionBrand || (machine.filtros?.transmisionMarca || ''),
           fuel: machine.filters?.fuel || (machine.filtros?.combustible || ''),
-          fuelBrand: machine.filters?.fuelBrand || (machine.filtros?.combustibleMarca || '')
+          fuelBrand: machine.filters?.fuelBrand || (machine.filtros?.combustibleMarca || ''),
+          air: machine.filters?.air || (machine.filtros?.aire || ''),
+          airBrand: machine.filters?.airBrand || (machine.filtros?.aireMarca || ''),
+          carbon: typeof machine.filters?.carbon === 'object' ? machine.filters.carbon : (machine.filters?.carbon || (machine.filtros?.carbono || '')),
+          carbonBrand: typeof machine.filters?.carbon === 'object' ? machine.filters.carbon.brand : (machine.filters?.carbonBrand || (machine.filtros?.carbonoMarca || ''))
         },
+        carbonFilterLifeHours: typeof machine.filters?.carbon === 'object' ? machine.filters.carbon.expectedLifeHours : (machine.filters?.carbonlife?.expectedLifeHours || machine.carbonFilterLifeHours || 100),
         tires: {
           front: {
             size: machine.tires?.front?.size || (machine.neumaticos?.delanteros?.tamano || ''),
@@ -142,8 +152,13 @@ const MachineModal = ({ show, type, machine, onClose, onSubmit }) => {
           transmission: '',
           transmissionBrand: '',
           fuel: '',
-          fuelBrand: ''
+          fuelBrand: '',
+          air: '',
+          airBrand: '',
+          carbon: '',
+          carbonBrand: ''
         },
+        carbonFilterLifeHours: 100,
         tires: {
           front: {
             size: '',
@@ -318,7 +333,7 @@ const MachineModal = ({ show, type, machine, onClose, onSubmit }) => {
       if (type !== 'edit' && !dataToSubmit.machineId) {
         dataToSubmit.machineId = `MACHINE_${Date.now()}`;
       }
-      
+
       console.log("Data to submit:", dataToSubmit);
       
       // Si es onSubmit (desde TabMachinary)
@@ -762,6 +777,218 @@ const MachineModal = ({ show, type, machine, onClose, onSubmit }) => {
                 </div>
               </div>
             </div>
+
+            {/* Air Filters */}
+            <div className="oil-section">
+              <h4 className="font-medium text-black mb-3 text-lg">Air Filters</h4>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <div className="modal-field">
+                  <label className="block text-sm font-medium text-black mb-1">Filter Number</label>
+                  <input
+                    type="text"
+                    name="filters.air"
+                    value={formData.filters.air}
+                    onChange={handleChange}
+                    className="w-full p-2 border rounded-md text-black"
+                  />
+                </div>
+                <div className="modal-field">
+                  <label className="block text-sm font-medium text-black mb-1">Brand</label>
+                  <input
+                    type="text"
+                    name="filters.airBrand"
+                    value={formData.filters.airBrand}
+                    onChange={handleChange}
+                    className="w-full p-2 border rounded-md text-black"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Carbon Filters for Chemical Machinery */}
+            <div className="oil-section border-t pt-6">
+              <div className="flex items-center gap-4 mb-4">
+                <h4 className="font-medium text-black text-lg">Carbon Filters (Chemical Equipment)</h4>
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    name="filters.carbon.isActive"
+                    checked={typeof formData.filters.carbon === 'object' ? formData.filters.carbon.isActive : false}
+                    onChange={(e) => {
+                      const checked = e.target.checked;
+                      setFormData(prev => {
+                        const updatedData = {
+                          ...prev
+                        };
+                        
+                        // Si se está marcando el checkbox, convertir la estructura simple en objeto completo
+                        if (checked) {
+                          const currentCarbon = typeof prev.filters.carbon === 'string' ? prev.filters.carbon : '';
+                          const currentCarbonBrand = prev.filters.carbonBrand || '';
+                          
+                          updatedData.filters = {
+                            ...updatedData.filters,
+                            carbon: {
+                              partNumber: currentCarbon,
+                              brand: currentCarbonBrand,
+                              expectedLifeHours: parseInt(prev.carbonFilterLifeHours) || 100,
+                              installationHours: parseInt(prev.currentHours) || 0,
+                              installationDate: new Date().toISOString(),
+                              isActive: true
+                            }
+                          };
+                          
+                          // Eliminar campos sueltos que ya están en el objeto
+                          delete updatedData.carbonFilterLifeHours;
+                          if (typeof updatedData.filters.carbonBrand !== 'undefined') {
+                            delete updatedData.filters.carbonBrand;
+                          }
+                        } else {
+                          // Si se desmarca, convertir de vuelta a estructura simple
+                          if (typeof prev.filters.carbon === 'object' && prev.filters.carbon) {
+                            updatedData.filters = {
+                              ...updatedData.filters,
+                              carbon: prev.filters.carbon.partNumber || '',
+                              carbonBrand: prev.filters.carbon.brand || ''
+                            };
+                            updatedData.carbonFilterLifeHours = prev.filters.carbon.expectedLifeHours || 100;
+                          }
+                        }
+                        
+                        return updatedData;
+                      });
+                    }}
+                    className="rounded"
+                  />
+                  <span className="text-sm text-gray-600">Machine uses carbon filters</span>
+                </label>
+              </div>
+
+              {(typeof formData.filters.carbon === 'object' && formData.filters.carbon.isActive) && (
+                <div className="space-y-4 bg-gray-50 p-4 rounded-md max-h-80 overflow-y-auto">
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    <div className="modal-field">
+                      <label className="block text-sm font-medium text-black mb-1">Filter Number</label>
+                      <input
+                        type="text"
+                        name="filters.carbon"
+                        value={
+                          typeof formData.filters.carbon === 'object' 
+                            ? formData.filters.carbon.partNumber || ''
+                            : formData.filters.carbon || ''
+                        }
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          setFormData(prev => {
+                            if (typeof prev.filters.carbon === 'object') {
+                              return {
+                                ...prev,
+                                filters: {
+                                  ...prev.filters,
+                                  carbon: {
+                                    ...prev.filters.carbon,
+                                    partNumber: value
+                                  }
+                                }
+                              };
+                            } else {
+                              return {
+                                ...prev,
+                                filters: {
+                                  ...prev.filters,
+                                  carbon: value
+                                }
+                              };
+                            }
+                          });
+                        }}
+                        className="w-full p-2 border rounded-md text-black"
+                      />
+                    </div>
+                    <div className="modal-field">
+                      <label className="block text-sm font-medium text-black mb-1">Brand</label>
+                      <input
+                        type="text"
+                        name="filters.carbonBrand"
+                        value={
+                          typeof formData.filters.carbon === 'object' 
+                            ? formData.filters.carbon.brand || ''
+                            : formData.filters.carbonBrand || ''
+                        }
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          setFormData(prev => {
+                            if (typeof prev.filters.carbon === 'object') {
+                              return {
+                                ...prev,
+                                filters: {
+                                  ...prev.filters,
+                                  carbon: {
+                                    ...prev.filters.carbon,
+                                    brand: value
+                                  }
+                                }
+                              };
+                            } else {
+                              return {
+                                ...prev,
+                                filters: {
+                                  ...prev.filters,
+                                  carbonBrand: value
+                                }
+                              };
+                            }
+                          });
+                        }}
+                        className="w-full p-2 border rounded-md text-black"
+                      />
+                    </div>
+                  </div>
+                  
+                  <div className="modal-field">
+                    <label className="block text-sm font-medium text-black mb-1">Expected Life (Hours)</label>
+                    <input
+                      type="number"
+                      name="carbonFilterLifeHours"
+                      value={
+                        typeof formData.filters.carbon === 'object' 
+                          ? formData.filters.carbon.expectedLifeHours || 100
+                          : formData.carbonFilterLifeHours || 100
+                      }
+                      onChange={(e) => {
+                        const value = parseInt(e.target.value) || 100;
+                        setFormData(prev => {
+                          if (typeof prev.filters.carbon === 'object') {
+                            return {
+                              ...prev,
+                              filters: {
+                                ...prev.filters,
+                                carbon: {
+                                  ...prev.filters.carbon,
+                                  expectedLifeHours: value
+                                }
+                              }
+                            };
+                          } else {
+                            return {
+                              ...prev,
+                              carbonFilterLifeHours: value
+                            };
+                          }
+                        });
+                      }}
+                      className="w-full p-2 border rounded-md text-black"
+                      min="1"
+                      placeholder="100"
+                    />
+                  </div>
+                  
+                  <div className="text-sm text-gray-600 bg-blue-50 p-3 rounded">
+                    <p><strong>Note:</strong> Carbon filter will be tracked automatically with the specified expected life hours. The system will calculate usage hours based on machine current hours.</p>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         );
       case 'tires':
@@ -856,16 +1083,33 @@ const MachineModal = ({ show, type, machine, onClose, onSubmit }) => {
   return (
     <div className="modal-overlay">
       <div className="modal-content">
-        <div className="flex justify-between items-center mb-6 border-b pb-4">
-          <h3 className="text-2xl font-bold text-gray-900">
-            {type === 'edit' ? 'Edit Machine' : 'New Machine'}
-          </h3>
-          <button 
-            onClick={onClose} 
-            className="text-gray-500 hover:text-gray-700 text-xl font-bold"
-          >
-            ×
-          </button>
+        <button 
+          type="button"
+          className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 text-xl font-bold leading-none z-20 bg-white rounded-full w-8 h-8 flex items-center justify-center shadow-lg hover:shadow-xl transition-all"
+          onClick={onClose}
+        >
+          ×
+        </button>
+
+        <div className="modal-header">
+          <div className="flex justify-between items-center">
+            <h2 className="text-xl font-semibold text-gray-900">
+              {type === 'edit' ? 'Edit Machine' : 'New Machine'}
+            </h2>
+          </div>
+          
+          <div className="flex space-x-1 mt-4 border-b">
+            {['basic', 'oils', 'filters', 'tires'].map((tab) => (
+              <button
+                key={tab}
+                type="button"
+                className={`tab-button ${activeTab === tab ? 'tab-button-active' : 'tab-button-inactive'}`}
+                onClick={() => setActiveTab(tab)}
+              >
+                {tab === 'basic' ? 'Basic Information' : tab.charAt(0).toUpperCase() + tab.slice(1)}
+              </button>
+            ))}
+          </div>
         </div>
 
         {error && (
@@ -874,49 +1118,30 @@ const MachineModal = ({ show, type, machine, onClose, onSubmit }) => {
           </div>
         )}
 
-        <form onSubmit={handleSubmit}>
-          {/* Tabs Navigation */}
-          <div className="flex space-x-4 border-b mb-6 overflow-x-auto">
-            {['basic', 'oils', 'filters', 'tires'].map((tab) => (
-              <button
-                key={tab}
-                type="button"
-                className={`py-3 px-6 font-medium text-base capitalize ${
-                  activeTab === tab
-                    ? 'border-b-2 border-indigo-600 text-indigo-600'
-                    : 'text-gray-500 hover:text-gray-700'
-                }`}
-                onClick={() => setActiveTab(tab)}
-              >
-                {tab === 'basic' ? 'Basic Information' : tab.charAt(0).toUpperCase() + tab.slice(1)}
-              </button>
-            ))}
-          </div>
+        <form onSubmit={handleSubmit} className="modal-body" id="machine-form">
+          {renderTabContent()}
+        </form>
 
-          {/* Tab Content */}
-          <div className="px-2 py-4">
-            {renderTabContent()}
-          </div>
-
-          {/* Form Actions */}
-          <div className="mt-8 flex justify-end space-x-4 pt-4 border-t">
+        <div className="modal-footer">
+          <div className="modal-actions">
             <button
               type="button"
               onClick={onClose}
-              className="px-6 py-2.5 bg-gray-100 text-gray-800 rounded-lg hover:bg-gray-200 font-medium transition-colors"
+              className="modal-button modal-button-cancel"
               disabled={loading}
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="px-6 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium transition-colors"
+              form="machine-form"
               disabled={loading}
+              className="modal-button modal-button-submit"
             >
               {loading ? 'Saving...' : type === 'edit' ? 'Save Changes' : 'Add Machine'}
             </button>
           </div>
-        </form>
+        </div>
       </div>
     </div>
   );

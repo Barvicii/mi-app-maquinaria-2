@@ -1,43 +1,61 @@
+import crypto from 'crypto';
 import { sendEmail } from './email.js';
 import { temporaryPasswordTemplate, resetPasswordTemplate, verificationCodeTemplate, userInvitationTemplate } from './emailTemplates.js';
 
-// Generar contraseña temporal aleatoria
-export const generateTemporaryPassword = () => {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
-  let password = '';
-  for (let i = 0; i < 12; i++) {
-    password += chars.charAt(Math.floor(Math.random() * chars.length));
+// Cryptographically secure Fisher-Yates shuffle
+const secureShuffleArray = (array) => {
+  const arr = [...array];
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = crypto.randomInt(0, i + 1);
+    [arr[i], arr[j]] = [arr[j], arr[i]];
   }
-  return password;
+  return arr;
 };
 
-// Generar token de reset
+// Generate cryptographically secure temporary password
+export const generateTemporaryPassword = () => {
+  const upper = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+  const lower = 'abcdefghijkmnpqrstuvwxyz';
+  const digits = '23456789';
+  
+  // Ensure at least one of each type
+  const password = [
+    upper[crypto.randomInt(0, upper.length)],
+    lower[crypto.randomInt(0, lower.length)],
+    digits[crypto.randomInt(0, digits.length)],
+  ];
+  
+  // Fill remaining characters
+  const allChars = upper + lower + digits;
+  for (let i = password.length; i < 12; i++) {
+    password.push(allChars[crypto.randomInt(0, allChars.length)]);
+  }
+  
+  return secureShuffleArray(password).join('');
+};
+
+// Generate cryptographically secure reset token
 export const generateResetToken = () => {
-  return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+  return crypto.randomBytes(32).toString('hex');
 };
 
-// Generar código de verificación
+// Generate cryptographically secure verification code
 export const generateVerificationCode = () => {
-  return Math.random().toString(36).substring(2, 8).toUpperCase();
+  return crypto.randomBytes(4).toString('hex').toUpperCase().substring(0, 6);
 };
 
 // Enviar email de contraseña temporal
 export const sendTemporaryPasswordEmail = async (email, name, temporaryPassword) => {
   try {
-    console.log(`📧 Enviando email de contraseña temporal a: ${email}`);
-    console.log(`👤 Nombre: ${name}`);
-    console.log(`🔑 Contraseña temporal: ${temporaryPassword}`);
-    
     const result = await sendEmail({
       to: email,
       subject: 'Your Temporary Password - Orchard Services',
       html: temporaryPasswordTemplate(name || 'User', temporaryPassword)
     });
 
-    console.log('✅ Email de contraseña temporal enviado');
     return { success: true, messageId: 'sent' };
   } catch (error) {
-    console.error('❌ Error al enviar email de contraseña temporal:', error);
+    console.error('[EMAIL] Error sending temporary password email:', error.message);
     return { success: false, error: error.message };
   }
 };
@@ -59,12 +77,9 @@ export const sendPasswordResetEmail = async (email, resetToken) => {
       html: resetPasswordTemplate(resetUrl)
     });
 
-    console.log('✅ Password reset email sent');
-    console.log('🔗 Reset URL:', resetUrl);
-    console.log('📧 Email sent to:', email);
     return { success: true, messageId: 'sent' };
   } catch (error) {
-    console.error('❌ Error sending password reset email:', error);
+    console.error('[EMAIL] Error sending password reset email:', error.message);
     return { success: false, error: error.message };
   }
 };
@@ -78,10 +93,9 @@ export const sendVerificationEmail = async (email, verificationCode) => {
       html: verificationCodeTemplate(verificationCode)
     });
 
-    console.log('✅ Email de verificación enviado');
     return { success: true, messageId: 'sent' };
   } catch (error) {
-    console.error('❌ Error al enviar email de verificación:', error);
+    console.error('[EMAIL] Error sending verification email:', error.message);
     return { success: false, error: error.message };
   }
 };
@@ -89,33 +103,26 @@ export const sendVerificationEmail = async (email, verificationCode) => {
 // Enviar email de invitación de usuario
 export const sendUserInvitationEmail = async (email, temporaryPassword) => {
   try {
-    console.log(`📧 Enviando email de invitación a: ${email}`);
-    console.log(`🔑 Contraseña temporal: ${temporaryPassword}`);
+    const loginUrl = process.env.NEXT_PUBLIC_APP_URL || 
+                     process.env.NEXT_PUBLIC_SITE_URL || 
+                     'https://orchardservices.co.nz';
+    const loginPage = `${loginUrl}/login`;
     
-    const loginUrl = `https://orchardservices.co.nz/login`;
-    console.log(`🔗 Login URL: ${loginUrl}`);
+    const htmlContent = userInvitationTemplate(email, temporaryPassword, loginPage);
     
-    console.log('📝 Generando template HTML...');
-    const htmlContent = userInvitationTemplate(email, temporaryPassword, loginUrl);
-    console.log(`📏 Template generado, longitud: ${htmlContent.length} caracteres`);
-    
-    console.log('📤 Llamando a sendEmail...');
     const result = await sendEmail({
       to: email,
       subject: 'Invitation to Orchard Services',
       html: htmlContent
     });
 
-    console.log('✅ Email de invitación enviado exitosamente');
-    
     return {
       success: true,
       messageId: 'sent',
       message: 'Invitation email sent successfully'
     };
   } catch (error) {
-    console.error('❌ Error enviando email de invitación:', error);
-    console.error('❌ Stack trace:', error.stack);
+    console.error('[EMAIL] Error sending invitation email:', error.message);
     return {
       success: false,
       error: error.message

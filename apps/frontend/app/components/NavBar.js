@@ -4,7 +4,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { 
   UserPlus, Database, FileText, AlertTriangle, QrCode, 
   Users, BarChart2, FilePlus, ClipboardCheck, Settings,
-  User, LogOut, UserCog, Building2
+  User, LogOut, UserCog, Building2, Receipt
 } from 'lucide-react';
 import { signOut, useSession } from 'next-auth/react';
 import Link from 'next/link';
@@ -23,6 +23,7 @@ const NavBar = ({ activeTab, onTabChange, isSuperAdmin = false, isAdmin = false 
     { id: 'prestart', name: 'Pre-Start', icon: <ClipboardCheck size={18} /> },
     { id: 'services', name: 'Services', icon: <FileText size={18} /> },
     { id: 'reports', name: 'Reports', icon: <FilePlus size={18} /> },
+    { id: 'invoices', name: 'Invoices', icon: <Receipt size={18} /> },
   ];
   
   // Define tabs that will go in the settings menu

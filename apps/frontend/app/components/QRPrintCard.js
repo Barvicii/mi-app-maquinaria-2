@@ -18,7 +18,7 @@ const QRPrintCard = ({ id, machineId, modelName, brandName }) => {
       `${protocol}//${hostname}:${port}` : // Development with port (e.g., localhost:3000)
       `${protocol}//${hostname}`; // Production without port
   
-    const fullUrl = `${baseUrl}/service/${id}`;
+    const fullUrl = `${baseUrl}/service/${id}?public=true`;
     return fullUrl;
   };
 

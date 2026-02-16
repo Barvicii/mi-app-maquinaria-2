@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '../auth/[...nextauth]/route';
 import { dbConnect } from "@/lib/mongodb";
+import mongoose from 'mongoose';
 import Organization from "@/models/Organization";
 import User from "@/models/User";
 
@@ -25,16 +26,30 @@ export async function GET(request) {
       return NextResponse.json({ error: 'Organization ID is required' }, { status: 400 });
     }
 
-    // Obtener información de la organización
-    const organization = await Organization.findById(organizationId);
+    // Obtener información de la organización (soporta tanto ID como nombre)
+    let organization = null;
+    
+    // Intentar primero por ObjectId
+    if (mongoose.Types.ObjectId.isValid(organizationId)) {
+      organization = await Organization.findById(organizationId);
+    }
+    
+    // Si no se encontró, intentar por nombre
+    if (!organization) {
+      organization = await Organization.findOne({ name: organizationId });
+    }
     
     if (!organization) {
       return NextResponse.json({ error: 'Organization not found' }, { status: 404 });
     }
 
     // Solo admins de la organización o SUPER_ADMIN pueden verificar límites
+    const orgIdStr = organization._id.toString();
     if (session.user.role !== 'SUPER_ADMIN' && 
-        session.user.organizationId !== organizationId) {
+        session.user.organizationId !== orgIdStr &&
+        session.user.organizationId !== organizationId &&
+        session.user.organization !== organization.name &&
+        session.user.company !== organization.name) {
       return NextResponse.json({ error: 'Access denied' }, { status: 403 });
     }
 

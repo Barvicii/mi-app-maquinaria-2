@@ -75,7 +75,66 @@ const MachineSchema = new mongoose.Schema({
         transmission: String,
         transmissionBrand: String,
         fuel: String,
-        fuelBrand: String
+        fuelBrand: String,
+        air: String,
+        airBrand: String,
+        carbon: String,
+        carbonBrand: String
+    },
+    
+    // Filtros de aire/carbono para maquinaria química
+    chemicalFilters: {
+        hasFilters: {
+            type: Boolean,
+            default: false
+        },
+        filterType: {
+            type: String,
+            enum: ['air', 'carbon', 'both'],
+            default: 'air'
+        },
+        expectedLifeHours: {
+            type: Number,
+            default: 100
+        },
+        currentFilters: [{
+            type: {
+                type: String,
+                enum: ['air', 'carbon'],
+                required: true
+            },
+            brand: String,
+            partNumber: String,
+            installationDate: {
+                type: Date,
+                required: true
+            },
+            installationHours: {
+                type: Number,
+                required: true
+            },
+            isActive: {
+                type: Boolean,
+                default: true
+            }
+        }],
+        history: [{
+            type: {
+                type: String,
+                enum: ['air', 'carbon']
+            },
+            brand: String,
+            partNumber: String,
+            installationDate: Date,
+            installationHours: Number,
+            replacementDate: Date,
+            replacementHours: Number,
+            replacedBy: String, // Técnico que lo reemplazó
+            serviceId: {
+                type: mongoose.Schema.Types.ObjectId,
+                ref: 'Service'
+            }
+        }]
     },
     
     // Llantas

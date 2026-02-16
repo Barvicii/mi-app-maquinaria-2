@@ -68,6 +68,8 @@ const TabAlertas = ({ suppressNotifications = false }) => {
         return <Settings className="h-5 w-5 text-blue-500" />;
       case 'prestart_issues':
         return <AlertTriangle className="h-5 w-5 text-red-500" />;
+      case 'chemical_filter':
+        return <AlertTriangle className="h-5 w-5 text-orange-500" />;
       case 'system':
         return <Info className="h-5 w-5 text-indigo-500" />;
       default:
@@ -195,6 +197,21 @@ const TabAlertas = ({ suppressNotifications = false }) => {
                         {alert.machineId && (
                           <div className="text-xs text-gray-400">
                             Machine: {alert.machineName || alert.machineId}
+                          </div>
+                        )}
+                        {alert.type === 'chemical_filter_replacement' && alert.data && (
+                          <div className="text-xs text-gray-600 mt-1 bg-orange-50 p-2 rounded">
+                            <div className="flex justify-between items-center">
+                              <span className="font-medium capitalize">{alert.data.filterType} Filter</span>
+                              <span className={`font-bold ${alert.data.remainingHours <= 0 ? 'text-red-600' : alert.data.remainingHours <= 5 ? 'text-orange-600' : 'text-yellow-600'}`}>
+                                {alert.data.remainingHours}h remaining
+                              </span>
+                            </div>
+                            <div className="text-xs text-gray-500 mt-1">
+                              Used: {alert.data.usedHours}h / {alert.data.expectedLife}h
+                              {alert.data.brand && ` • ${alert.data.brand}`}
+                              {alert.data.partNumber && ` • Part: ${alert.data.partNumber}`}
+                            </div>
                           </div>
                         )}
                       </div>

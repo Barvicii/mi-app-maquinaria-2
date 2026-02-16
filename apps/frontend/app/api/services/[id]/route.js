@@ -156,25 +156,40 @@ export async function DELETE(request, { params }) {
     }
     
     // Permitir eliminar si:
-    // 1. El servicio pertenece al usuario actual
-    // 2. O el servicio es público Y está asociado a una máquina del usuario
+    // 1. El usuario es ADMIN o SUPER_ADMIN
+    // 2. El servicio pertenece al usuario actual
+    // 3. El usuario es el creador de la máquina (machineCreatorId)
+    // 4. El servicio es público Y está asociado a una máquina del usuario
     
     let canDelete = false;
+    const isAdmin = session.user.role === 'ADMIN' || session.user.role === 'SUPER_ADMIN';
     
-    if (service.userId === userId) {
+    if (isAdmin) {
+      canDelete = true;
+    } else if (service.userId === userId) {
       // El servicio pertenece directamente al usuario
+      canDelete = true;
+    } else if (service.machineCreatorId === userId) {
+      // El usuario es el dueño de la máquina asociada
       canDelete = true;
     } else if (service.userId === "public_user") {
       // Es un servicio público, verificar si la máquina pertenece al usuario
-      try {
-        const machine = await db.collection('machines').findOne({
-          _id: new ObjectId(service.maquinaId),
-          userId: userId
-        });
-        
-        canDelete = !!machine; // Puede eliminar si la máquina existe y pertenece al usuario
-      } catch (error) {
-        console.error(`Error verifying machine ownership: ${error.message}`);
+      const machineRef = service.machineId || service.maquinaId || service.datos?.machineId;
+      if (machineRef) {
+        try {
+          const machineQuery = ObjectId.isValid(machineRef)
+            ? { $or: [{ _id: new ObjectId(machineRef) }, { machineId: machineRef }] }
+            : { machineId: machineRef };
+          
+          const machine = await db.collection('machines').findOne({
+            ...machineQuery,
+            $or: [{ userId: userId }, { createdBy: userId }]
+          });
+          
+          canDelete = !!machine;
+        } catch (error) {
+          console.error(`Error verifying machine ownership: ${error.message}`);
+        }
       }
     }
     

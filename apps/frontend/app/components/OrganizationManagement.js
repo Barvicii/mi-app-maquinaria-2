@@ -35,6 +35,7 @@ const OrganizationManagement = () => {
     name: '',
     description: '',
     maxUsers: 10,
+    maxMachines: 20, // New field for machine limit
     adminName: '',
     adminEmail: '',
     isMultiUser: true // New option to determine if it will be multi-user
@@ -43,7 +44,10 @@ const OrganizationManagement = () => {
   const [editForm, setEditForm] = useState({
     name: '',
     description: '',
-    maxUsers: 10
+    maxUsers: 10,
+    maxMachines: 20, // New field for machine limit
+    adminName: '',
+    adminEmail: ''
   });
 
   useEffect(() => {
@@ -118,6 +122,7 @@ const OrganizationManagement = () => {
           name: '',
           description: '',
           maxUsers: 10,
+          maxMachines: 20,
           adminName: '',
           adminEmail: '',
           isMultiUser: true
@@ -135,6 +140,8 @@ const OrganizationManagement = () => {
     e.preventDefault();
     if (!selectedOrg) return;
 
+    console.log('Updating org with data:', editForm);
+
     try {
       const response = await fetch(`/api/organizations-native/${selectedOrg._id}`, {
         method: 'PUT',
@@ -145,6 +152,7 @@ const OrganizationManagement = () => {
       const data = await response.json();
 
       if (data.success) {
+        console.log('Update successful, fetching organizations...');
         setShowEditModal(false);
         setSelectedOrg(null);
         fetchOrganizations();
@@ -157,11 +165,16 @@ const OrganizationManagement = () => {
   };
 
   const openEditModal = (org) => {
+    console.log('Opening edit modal for org:', org);
+    console.log('Current maxMachines value:', org.maxMachines);
     setSelectedOrg(org);
     setEditForm({
       name: org.name,
       description: org.description || '',
-      maxUsers: org.maxUsers
+      maxUsers: org.maxUsers,
+      maxMachines: org.maxMachines !== undefined ? org.maxMachines : 20,
+      adminName: org.adminId?.name || '',
+      adminEmail: org.adminId?.email || ''
     });
     setShowEditModal(true);
   };
@@ -400,7 +413,12 @@ const OrganizationManagement = () => {
 
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-gray-600">Machines:</span>
-                  <span className="text-sm font-medium">{org.machinesCount || 0}</span>
+                  <span className={`text-sm font-medium ${
+                    (org.currentMachineCount || 0) / (org.maxMachines || 20) >= 0.8 ? 'text-red-600' :
+                    (org.currentMachineCount || 0) / (org.maxMachines || 20) >= 0.6 ? 'text-yellow-600' : 'text-green-600'
+                  }`}>
+                    {org.currentMachineCount || org.machinesCount || 0} / {org.maxMachines || 20}
+                  </span>
                 </div>
 
                 {/* Progress Bar */}
@@ -522,6 +540,22 @@ const OrganizationManagement = () => {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Maximum Machines
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  value={createForm.maxMachines}
+                  onChange={(e) => setCreateForm({...createForm, maxMachines: parseInt(e.target.value)})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Maximum number of machines this organization can register
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
                   {createForm.isMultiUser ? 'Administrator Name *' : 'User Name *'}
                 </label>
                 <input
@@ -615,6 +649,48 @@ const OrganizationManagement = () => {
                 <p className="text-xs text-gray-500 mt-1">
                   Minimum: {selectedOrg.currentUserCount} (current users)
                 </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Maximum Machines
+                </label>
+                <input
+                  type="number"
+                  min={selectedOrg.currentMachineCount || 0}
+                  value={editForm.maxMachines}
+                  onChange={(e) => setEditForm({...editForm, maxMachines: parseInt(e.target.value)})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Minimum: {selectedOrg.currentMachineCount || 0} (current machines)
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Administrator Name
+                </label>
+                <input
+                  type="text"
+                  value={editForm.adminName}
+                  onChange={(e) => setEditForm({...editForm, adminName: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Administrator Email
+                </label>
+                <input
+                  type="email"
+                  value={editForm.adminEmail}
+                  onChange={(e) => setEditForm({...editForm, adminEmail: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  required
+                />
               </div>
 
               <div className="flex space-x-3 pt-4">

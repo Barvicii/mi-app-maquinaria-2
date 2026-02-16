@@ -1,32 +1,9 @@
+require('dotenv').config();
 const { MongoClient, ObjectId } = require('mongodb');
-const fs = require('fs');
-const path = require('path');
 
-// Leer la configuración desde .env.local
-let mongoUri;
-try {
-  const envPath = path.join(process.cwd(), '.env.local');
-  const envContent = fs.readFileSync(envPath, 'utf8');
-  const envLines = envContent.split('\n');
-  
-  for (const line of envLines) {
-    if (line.startsWith('MONGODB_URI=')) {
-      mongoUri = line.substring('MONGODB_URI='.length).trim();
-      // Remove quotes if present
-      if (mongoUri.startsWith('"') && mongoUri.endsWith('"')) {
-        mongoUri = mongoUri.slice(1, -1);
-      }
-      break;
-    }
-  }
-} catch (e) {
-  console.log('Could not read .env.local file');
-}
-
-// Usar URI por defecto si no se encontró
+const mongoUri = process.env.MONGODB_URI;
 if (!mongoUri) {
-  console.log('No MONGODB_URI found in .env.local, using default connection string');
-  mongoUri = "mongodb+srv://barviciigame:Apple123@cluster0.wkwfk.mongodb.net/orchardservice?retryWrites=true&w=majority&appName=Cluster0";
+  throw new Error('MONGODB_URI environment variable is not set');
 }
 
 async function addDeutzFahr5090DV() {
