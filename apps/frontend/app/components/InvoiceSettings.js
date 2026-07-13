@@ -517,7 +517,7 @@ export default function InvoiceSettings({ suppressNotifications = false }) {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Webhook Secret (CRON)
+                Webhook Secret (CRON) <span className="text-gray-400 text-xs font-normal">— optional, advanced</span>
               </label>
               <div className="relative">
                 <input
@@ -525,7 +525,7 @@ export default function InvoiceSettings({ suppressNotifications = false }) {
                   value={settings.cronSecret || ''}
                   onChange={(e) => handleChange('cronSecret', e.target.value)}
                   className="w-full border rounded-lg px-3 py-2.5 text-sm pr-10"
-                  placeholder="Optional org-specific webhook secret"
+                  placeholder="Leave empty unless you need a per-org token"
                 />
                 <button
                   type="button"
@@ -535,11 +535,17 @@ export default function InvoiceSettings({ suppressNotifications = false }) {
                   {showCronSecret ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
               </div>
-              <p className="text-xs text-gray-400 mt-1">
-                Optional. The main <code className="bg-gray-100 px-1 rounded">/api/invoices/process-email</code> endpoint
-                is protected by the global <code className="bg-gray-100 px-1 rounded">CRON_SECRET</code> env var.
-                Use this field only if your cron provider needs a per-org token.
-              </p>
+              <div className="text-xs text-gray-500 mt-1 space-y-1">
+                <p>
+                  <strong>Leave this empty.</strong> The <code className="bg-gray-100 px-1 rounded">/api/invoices/process-email</code> endpoint
+                  is protected by the global <code className="bg-gray-100 px-1 rounded">CRON_SECRET</code> environment variable
+                  configured in Vercel — not by this field.
+                </p>
+                <p className="text-amber-700">
+                  ⚠️ Do <strong>not</strong> paste values like <code className="bg-gray-100 px-1 rounded">CRON_SECRET=abc…</code> here.
+                  Only use this field if your cron provider requires a per-org token and you know what you&apos;re doing.
+                </p>
+              </div>
             </div>
 
             <div className="flex items-start gap-3 bg-emerald-50 border border-emerald-200 rounded-lg p-3">
