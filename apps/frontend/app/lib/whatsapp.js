@@ -22,20 +22,24 @@ const APP_URL = process.env.NEXTAUTH_URL || 'https://orchardservices.co.nz';
  * Send a WhatsApp message via Meta Cloud API
  * @param {string} to - Phone number in international format (no + sign)
  * @param {string} message - Text message to send
+ * @param {object} [creds] - Optional per-org credentials to override env vars
  * @returns {{ success: boolean, method: string, messageId?: string }}
  */
-async function sendViaCloudAPI(to, message) {
-  if (!WHATSAPP_PHONE_ID || !WHATSAPP_ACCESS_TOKEN) {
+async function sendViaCloudAPI(to, message, creds = {}) {
+  const phoneId = creds.whatsAppPhoneId || WHATSAPP_PHONE_ID;
+  const token = creds.whatsAppAccessToken || WHATSAPP_ACCESS_TOKEN;
+
+  if (!phoneId || !token) {
     return { success: false, method: 'cloud_api', error: 'WhatsApp Cloud API not configured' };
   }
 
   try {
     const res = await fetch(
-      `https://graph.facebook.com/v18.0/${WHATSAPP_PHONE_ID}/messages`,
+      `https://graph.facebook.com/v18.0/${phoneId}/messages`,
       {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${WHATSAPP_ACCESS_TOKEN}`,
+          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
@@ -112,27 +116,33 @@ function buildUnassignedInvoiceMessage(invoiceData) {
 /**
  * Send notification about an unassigned invoice
  * Tries Cloud API first, falls back to generating a wa.me link
- * 
- * @param {object} invoiceData - Parsed invoice data
+ *
+ * @param {object} invoiceData - Parsed invoice data. May also include
+ *   `adminWhatsApp`, `whatsAppPhoneId`, `whatsAppAccessToken` from the org
+ *   settings — these override env vars for that call.
  * @returns {{ success: boolean, method: string, waLink?: string }}
  */
 export async function notifyUnassignedInvoice(invoiceData) {
-  if (!ADMIN_WHATSAPP) {
-    console.warn('[WhatsApp] ADMIN_WHATSAPP not configured — skipping notification');
-    return { success: false, method: 'none', error: 'ADMIN_WHATSAPP not set' };
+  const to = invoiceData.adminWhatsApp || ADMIN_WHATSAPP;
+  if (!to) {
+    console.warn('[WhatsApp] adminWhatsApp not configured — skipping notification');
+    return { success: false, method: 'none', error: 'adminWhatsApp not set' };
   }
 
   const message = buildUnassignedInvoiceMessage(invoiceData);
 
   // Try Cloud API first
-  const apiResult = await sendViaCloudAPI(ADMIN_WHATSAPP, message);
+  const apiResult = await sendViaCloudAPI(to, message, {
+    whatsAppPhoneId: invoiceData.whatsAppPhoneId,
+    whatsAppAccessToken: invoiceData.whatsAppAccessToken,
+  });
   if (apiResult.success) {
     console.log('[WhatsApp] ✅ Notification sent via Cloud API:', apiResult.messageId);
     return apiResult;
   }
 
   // Fallback: generate wa.me link (will be stored for manual sending)
-  const waLink = generateWaLink(ADMIN_WHATSAPP, message);
+  const waLink = generateWaLink(to, message);
   console.log('[WhatsApp] ⚠️ Cloud API not available, generated wa.me link');
 
   return {

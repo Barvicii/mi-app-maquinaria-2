@@ -7,7 +7,7 @@
   "crons": [
     {
       "path": "/api/invoices/process-email?secret=${CRON_SECRET}",
-      "schedule": "0 8 * * *"
+      "schedule": "0 * * * *"
     }
   ],
   "projectSettings": {
@@ -26,6 +26,12 @@
     },
     "app/api/invoices/process-email/route.js": {
       "maxDuration": 60
+    },
+    "app/api/invoices/poll-now/route.js": {
+      "maxDuration": 60
+    },
+    "app/api/invoices/test-connection/route.js": {
+      "maxDuration": 15
     }
   },
   "headers": [

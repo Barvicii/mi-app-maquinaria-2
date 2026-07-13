@@ -1,14 +1,15 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Settings, Save, RefreshCw, MessageCircle, Mail, Shield,
   Eye, EyeOff, CheckCircle, AlertCircle, DollarSign, Bell,
-  Info, ExternalLink
+  Info, ExternalLink, PlugZap, PlayCircle, ChevronDown, ChevronRight
 } from 'lucide-react';
 
 const CURRENCIES = ['NZD', 'AUD', 'USD'];
 const CATEGORIES = ['Spare Part', 'Service', 'Oil', 'Filter', 'Tire', 'Fuel', 'Other'];
+const MASKED = '••••••••';
 
 export default function InvoiceSettings({ suppressNotifications = false }) {
   const [settings, setSettings] = useState(null);
@@ -17,6 +18,16 @@ export default function InvoiceSettings({ suppressNotifications = false }) {
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
   const [isDefault, setIsDefault] = useState(true);
+  const [detectedProvider, setDetectedProvider] = useState(null);
+  const [resolvedImap, setResolvedImap] = useState(null);
+  const [lastPollInfo, setLastPollInfo] = useState({ at: null, error: null });
+
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState(null);
+  const [polling, setPolling] = useState(false);
+  const [pollResult, setPollResult] = useState(null);
+
+  const [showAdvancedImap, setShowAdvancedImap] = useState(false);
 
   // Password visibility toggles
   const [showEmailPass, setShowEmailPass] = useState(false);
@@ -32,6 +43,12 @@ export default function InvoiceSettings({ suppressNotifications = false }) {
       const data = await res.json();
       setSettings(data.settings);
       setIsDefault(data.isDefault);
+      setDetectedProvider(data.detectedProvider || null);
+      setResolvedImap(data.resolvedImap || null);
+      setLastPollInfo({
+        at: data.lastEmailPollAt || null,
+        error: data.lastEmailPollError || null,
+      });
     } catch (err) {
       setError(err.message);
     } finally {
@@ -45,7 +62,37 @@ export default function InvoiceSettings({ suppressNotifications = false }) {
 
   const handleChange = (field, value) => {
     setSettings((prev) => ({ ...prev, [field]: value }));
+    // Reset test/poll results if the user edits anything relevant
+    if (['invoiceEmail', 'invoiceEmailPassword', 'imapHost', 'imapPort', 'imapSecure'].includes(field)) {
+      setTestResult(null);
+    }
   };
+
+  // Live detect provider as the user types the email
+  useEffect(() => {
+    if (!settings?.invoiceEmail) {
+      setDetectedProvider(null);
+      return;
+    }
+    const email = String(settings.invoiceEmail).trim();
+    const at = email.lastIndexOf('@');
+    if (at < 1 || at === email.length - 1) return;
+    let cancelled = false;
+    const t = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/invoices/detect-provider?email=${encodeURIComponent(email)}`, {
+          credentials: 'same-origin',
+        });
+        if (!res.ok || cancelled) return;
+        const data = await res.json();
+        if (cancelled) return;
+        setDetectedProvider(data.detected ? data.provider : null);
+      } catch {
+        /* silent */
+      }
+    }, 400);
+    return () => { cancelled = true; clearTimeout(t); };
+  }, [settings?.invoiceEmail]);
 
   const handleSave = async () => {
     try {
@@ -68,12 +115,69 @@ export default function InvoiceSettings({ suppressNotifications = false }) {
       setSuccess('Settings saved successfully');
       setIsDefault(false);
       setTimeout(() => setSuccess(null), 4000);
+      // Refresh so masked fields and resolvedImap come back with fresh state
+      fetchSettings();
     } catch (err) {
       setError(err.message);
     } finally {
       setSaving(false);
     }
   };
+
+  const handleTestConnection = async () => {
+    try {
+      setTesting(true);
+      setTestResult(null);
+      const res = await fetch('/api/invoices/test-connection', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({
+          email: settings.invoiceEmail,
+          password: settings.invoiceEmailPassword,
+          imapHost: settings.imapHost || undefined,
+          imapPort: settings.imapPort || undefined,
+          imapSecure: settings.imapSecure !== false,
+        }),
+      });
+      const data = await res.json();
+      setTestResult({ ok: res.ok && data.ok, ...data });
+    } catch (err) {
+      setTestResult({ ok: false, error: err.message });
+    } finally {
+      setTesting(false);
+    }
+  };
+
+  const handlePollNow = async () => {
+    try {
+      setPolling(true);
+      setPollResult(null);
+      const res = await fetch('/api/invoices/poll-now', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+      });
+      const data = await res.json();
+      setPollResult({ ok: res.ok && data.ok !== false, ...data });
+      // Refresh last-poll info shown in the header
+      fetchSettings();
+    } catch (err) {
+      setPollResult({ ok: false, error: err.message });
+    } finally {
+      setPolling(false);
+    }
+  };
+
+  const emailIsValid = useMemo(() => {
+    if (!settings?.invoiceEmail) return false;
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(settings.invoiceEmail).trim());
+  }, [settings?.invoiceEmail]);
+
+  const hasPassword = useMemo(() => {
+    const p = settings?.invoiceEmailPassword;
+    return !!p && p !== '';
+  }, [settings?.invoiceEmailPassword]);
 
   if (loading) {
     return (
@@ -202,6 +306,7 @@ export default function InvoiceSettings({ suppressNotifications = false }) {
           </h3>
           <p className="text-sm text-gray-500 mb-4">
             Configure the email account where vendors send invoices. The system will read incoming emails and create invoices automatically.
+            Works with <strong>Gmail, Outlook/Hotmail, Yahoo, iCloud, Zoho, Fastmail</strong> and any IMAP server.
           </p>
 
           <div className="space-y-4">
@@ -216,6 +321,35 @@ export default function InvoiceSettings({ suppressNotifications = false }) {
                 className="w-full border rounded-lg px-3 py-2.5 text-sm"
                 placeholder="e.g. invoices@yourcompany.co.nz"
               />
+              {/* Detected provider badge */}
+              {detectedProvider ? (
+                <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+                  <span className="inline-flex items-center gap-1 bg-blue-50 text-blue-700 border border-blue-200 rounded-full px-2 py-1">
+                    <CheckCircle size={12} />
+                    <strong>{detectedProvider.label}</strong> detected
+                  </span>
+                  <span className="text-gray-500">
+                    IMAP: <code className="bg-gray-100 px-1 rounded">{detectedProvider.host}:{detectedProvider.port}</code>
+                  </span>
+                  {detectedProvider.requiresAppPassword && (
+                    <span className="text-amber-700">
+                      Requires an <strong>App Password</strong>
+                      {detectedProvider.appPasswordUrl && (
+                        <> — <a href={detectedProvider.appPasswordUrl} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline inline-flex items-center gap-0.5">
+                          get one here <ExternalLink size={10} />
+                        </a></>
+                      )}
+                    </span>
+                  )}
+                </div>
+              ) : (
+                emailIsValid && (
+                  <div className="mt-2 flex items-center gap-1 text-xs text-amber-700">
+                    <AlertCircle size={12} />
+                    Unknown provider — enter IMAP host/port manually below.
+                  </div>
+                )
+              )}
             </div>
 
             <div>
@@ -228,7 +362,7 @@ export default function InvoiceSettings({ suppressNotifications = false }) {
                   value={settings.invoiceEmailPassword || ''}
                   onChange={(e) => handleChange('invoiceEmailPassword', e.target.value)}
                   className="w-full border rounded-lg px-3 py-2.5 text-sm pr-10"
-                  placeholder="Gmail App Password"
+                  placeholder={hasPassword && settings.invoiceEmailPassword === MASKED ? 'Leave as is to keep current password' : 'Paste your app password'}
                 />
                 <button
                   type="button"
@@ -239,11 +373,146 @@ export default function InvoiceSettings({ suppressNotifications = false }) {
                 </button>
               </div>
               <p className="text-xs text-gray-400 mt-1">
-                For Gmail, generate an App Password at{' '}
-                <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline inline-flex items-center gap-0.5">
-                  myaccount.google.com/apppasswords <ExternalLink size={10} />
-                </a>
+                Stored encrypted (AES-256-GCM) in the database. For Gmail/Outlook/Yahoo/iCloud you must
+                use an App Password — your normal login password will NOT work over IMAP.
               </p>
+            </div>
+
+            {/* Test connection + Process now buttons */}
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={handleTestConnection}
+                disabled={testing || !emailIsValid || (!hasPassword && !settings.invoiceEmailPassword)}
+                className="px-3 py-2 text-sm border border-blue-300 text-blue-700 bg-blue-50 rounded-lg hover:bg-blue-100 disabled:opacity-50 flex items-center gap-2"
+              >
+                <PlugZap size={14} />
+                {testing ? 'Testing…' : 'Test connection'}
+              </button>
+              <button
+                type="button"
+                onClick={handlePollNow}
+                disabled={polling || isDefault || !emailIsValid}
+                title={isDefault ? 'Save settings first' : 'Fetch unread emails now'}
+                className="px-3 py-2 text-sm border border-emerald-300 text-emerald-700 bg-emerald-50 rounded-lg hover:bg-emerald-100 disabled:opacity-50 flex items-center gap-2"
+              >
+                <PlayCircle size={14} />
+                {polling ? 'Processing…' : 'Process now'}
+              </button>
+              {lastPollInfo.at && (
+                <div className="text-xs text-gray-400 self-center ml-auto">
+                  Last poll: {new Date(lastPollInfo.at).toLocaleString()}
+                  {lastPollInfo.error && (
+                    <span className="text-red-600 ml-1"> — {lastPollInfo.error}</span>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Test result */}
+            {testResult && (
+              <div className={`text-xs rounded-lg px-3 py-2 border ${testResult.ok ? 'bg-green-50 border-green-200 text-green-700' : 'bg-red-50 border-red-200 text-red-700'}`}>
+                {testResult.ok ? (
+                  <span className="flex items-center gap-1">
+                    <CheckCircle size={12} />
+                    Connected. Inbox {testResult.inboxFound ? 'found' : 'not found'} — {testResult.mailboxCount} mailbox(es) visible.
+                  </span>
+                ) : (
+                  <span className="flex items-start gap-1">
+                    <AlertCircle size={12} className="mt-0.5" />
+                    <span>{testResult.error || 'Connection failed'}</span>
+                  </span>
+                )}
+              </div>
+            )}
+
+            {/* Poll result */}
+            {pollResult && (
+              <div className={`text-xs rounded-lg px-3 py-2 border ${pollResult.ok ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-red-50 border-red-200 text-red-700'}`}>
+                {pollResult.ok ? (
+                  <div>
+                    Fetched <strong>{pollResult.fetched ?? 0}</strong> unread — created{' '}
+                    <strong>{pollResult.created?.length ?? 0}</strong>, skipped{' '}
+                    <strong>{pollResult.skipped?.length ?? 0}</strong>, errors{' '}
+                    <strong>{pollResult.errors?.length ?? 0}</strong>.
+                    {pollResult.created?.length > 0 && (
+                      <ul className="mt-1 list-disc list-inside">
+                        {pollResult.created.slice(0, 5).map((c, i) => (
+                          <li key={i}>
+                            {c.invoiceId} — {c.vendor} — {c.amount ?? '?'} —{' '}
+                            {c.machineAssigned ? `assigned to ${c.machineName}` : 'unassigned'}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                ) : (
+                  <span className="flex items-start gap-1">
+                    <AlertCircle size={12} className="mt-0.5" />
+                    <span>{pollResult.error || 'Poll failed'}</span>
+                  </span>
+                )}
+              </div>
+            )}
+
+            {/* Advanced IMAP settings */}
+            <div>
+              <button
+                type="button"
+                onClick={() => setShowAdvancedImap((s) => !s)}
+                className="text-xs text-gray-500 hover:text-gray-700 flex items-center gap-1"
+              >
+                {showAdvancedImap ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+                Advanced IMAP settings (only needed for unknown providers)
+              </button>
+              {showAdvancedImap && (
+                <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-3 bg-gray-50 border rounded-lg p-3">
+                  <div className="sm:col-span-2">
+                    <label className="block text-xs font-medium text-gray-600 mb-1">IMAP Host</label>
+                    <input
+                      type="text"
+                      value={settings.imapHost || ''}
+                      onChange={(e) => handleChange('imapHost', e.target.value)}
+                      className="w-full border rounded px-2 py-1.5 text-sm"
+                      placeholder={resolvedImap?.host || 'e.g. imap.yourprovider.com'}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Port</label>
+                    <input
+                      type="number"
+                      value={settings.imapPort ?? 993}
+                      onChange={(e) => handleChange('imapPort', Number(e.target.value))}
+                      className="w-full border rounded px-2 py-1.5 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Mailbox</label>
+                    <input
+                      type="text"
+                      value={settings.imapMailbox || 'INBOX'}
+                      onChange={(e) => handleChange('imapMailbox', e.target.value)}
+                      className="w-full border rounded px-2 py-1.5 text-sm"
+                      placeholder="INBOX"
+                    />
+                  </div>
+                  <label className="flex items-center gap-2 text-xs sm:col-span-2">
+                    <input
+                      type="checkbox"
+                      checked={settings.imapSecure !== false}
+                      onChange={(e) => handleChange('imapSecure', e.target.checked)}
+                      className="rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
+                    />
+                    <span>Use TLS (secure IMAP, recommended)</span>
+                  </label>
+                  {resolvedImap && (
+                    <div className="sm:col-span-3 text-xs text-gray-500">
+                      Effective config: <code className="bg-white px-1 rounded border">{resolvedImap.host}:{resolvedImap.port}</code>{' '}
+                      ({resolvedImap.source === 'custom' ? 'custom override' : 'auto-detected'})
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             <div>
@@ -256,7 +525,7 @@ export default function InvoiceSettings({ suppressNotifications = false }) {
                   value={settings.cronSecret || ''}
                   onChange={(e) => handleChange('cronSecret', e.target.value)}
                   className="w-full border rounded-lg px-3 py-2.5 text-sm pr-10"
-                  placeholder="Secret key to authorize the email processing webhook"
+                  placeholder="Optional org-specific webhook secret"
                 />
                 <button
                   type="button"
@@ -267,19 +536,28 @@ export default function InvoiceSettings({ suppressNotifications = false }) {
                 </button>
               </div>
               <p className="text-xs text-gray-400 mt-1">
-                Used to secure the <code className="bg-gray-100 px-1 rounded">/api/invoices/process-email</code> endpoint.
+                Optional. The main <code className="bg-gray-100 px-1 rounded">/api/invoices/process-email</code> endpoint
+                is protected by the global <code className="bg-gray-100 px-1 rounded">CRON_SECRET</code> env var.
+                Use this field only if your cron provider needs a per-org token.
               </p>
             </div>
 
-            <div className="flex items-center gap-3">
-              <label className="flex items-center gap-2 cursor-pointer">
+            <div className="flex items-start gap-3 bg-emerald-50 border border-emerald-200 rounded-lg p-3">
+              <label className="flex items-start gap-2 cursor-pointer">
                 <input
                   type="checkbox"
                   checked={settings.autoProcessEmails || false}
                   onChange={(e) => handleChange('autoProcessEmails', e.target.checked)}
-                  className="rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
+                  className="mt-0.5 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
                 />
-                <span className="text-sm text-gray-700">Enable automatic email processing</span>
+                <span className="text-sm text-gray-700">
+                  <strong>Enable automatic email processing</strong>
+                  <br />
+                  <span className="text-xs text-gray-500">
+                    When on, the scheduled poller will check this inbox on every run and auto-create invoices.
+                    Leave off while you test.
+                  </span>
+                </span>
               </label>
             </div>
           </div>

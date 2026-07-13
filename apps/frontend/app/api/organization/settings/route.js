@@ -16,6 +16,11 @@ import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '../../auth/[...nextauth]/route';
 import { ObjectId } from 'mongodb';
+import { encrypt } from '@/lib/crypto';
+import { detectProvider, resolveImapConfig } from '@/lib/imap-providers';
+
+const MASKED = '••••••••';
+const ENCRYPTED_FIELDS = new Set(['invoiceEmailPassword', 'whatsAppAccessToken', 'cronSecret']);
 
 /**
  * GET /api/organization/settings — Get current org settings
@@ -72,20 +77,37 @@ export async function GET(request) {
           defaultCurrency: 'NZD',
           defaultCategory: 'Other',
           companyName: orgName || '',
+          imapHost: '',
+          imapPort: 993,
+          imapSecure: true,
+          imapMailbox: 'INBOX',
         },
         isDefault: true,
+        detectedProvider: null,
+        resolvedImap: null,
       });
     }
 
     // Mask sensitive fields for display
     const maskedSettings = {
       ...settings,
-      invoiceEmailPassword: settings.invoiceEmailPassword ? '••••••••' : '',
-      whatsAppAccessToken: settings.whatsAppAccessToken ? '••••••••' : '',
-      cronSecret: settings.cronSecret ? '••••••••' : '',
+      invoiceEmailPassword: settings.invoiceEmailPassword ? MASKED : '',
+      whatsAppAccessToken: settings.whatsAppAccessToken ? MASKED : '',
+      cronSecret: settings.cronSecret ? MASKED : '',
     };
 
-    return NextResponse.json({ settings: maskedSettings, isDefault: false });
+    // Extra hints for the UI: what provider we auto-detected and what final IMAP config resolves to
+    const detectedProvider = detectProvider(settings.invoiceEmail);
+    const resolvedImap = resolveImapConfig(settings);
+
+    return NextResponse.json({
+      settings: maskedSettings,
+      isDefault: false,
+      detectedProvider,
+      resolvedImap,
+      lastEmailPollAt: settings.lastEmailPollAt || null,
+      lastEmailPollError: settings.lastEmailPollError || null,
+    });
   } catch (error) {
     console.error('Error fetching org settings:', error);
     return NextResponse.json({ error: 'Failed to fetch settings' }, { status: 500 });
@@ -128,17 +150,43 @@ export async function PUT(request) {
       'defaultCurrency',
       'defaultCategory',
       'companyName',
+      // Custom IMAP overrides (optional)
+      'imapHost',
+      'imapPort',
+      'imapSecure',
+      'imapMailbox',
     ];
 
     const updateData = {};
     for (const field of allowedFields) {
-      if (data[field] !== undefined) {
-        // Don't overwrite masked passwords with the mask string
-        if (['invoiceEmailPassword', 'whatsAppAccessToken', 'cronSecret'].includes(field)) {
-          if (data[field] === '••••••••' || data[field] === '') continue;
+      if (data[field] === undefined) continue;
+
+      // Skip the masked placeholder or empty strings for encrypted fields
+      if (ENCRYPTED_FIELDS.has(field)) {
+        if (data[field] === MASKED || data[field] === '') continue;
+        try {
+          updateData[field] = encrypt(String(data[field]));
+        } catch (err) {
+          return NextResponse.json(
+            { error: `Cannot encrypt ${field}: ${err.message}` },
+            { status: 500 }
+          );
         }
-        updateData[field] = data[field];
+        continue;
       }
+
+      if (field === 'imapPort') {
+        const n = Number(data[field]);
+        updateData[field] = Number.isFinite(n) && n > 0 ? n : 993;
+        continue;
+      }
+      if (field === 'imapSecure' || field === 'autoProcessEmails' ||
+          field === 'notifyOnUnassignedInvoice' || field === 'notifyViaEmail' ||
+          field === 'notifyViaWhatsApp') {
+        updateData[field] = !!data[field];
+        continue;
+      }
+      updateData[field] = data[field];
     }
 
     updateData.updatedAt = new Date();
