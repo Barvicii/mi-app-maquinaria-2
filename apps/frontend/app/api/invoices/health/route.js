@@ -26,8 +26,8 @@ export async function GET() {
   };
 
   const deps = {
-    imapflow: safeCanLoad('imapflow'),
-    mailparser: safeCanLoad('mailparser'),
+    imapflow: await canImport('imapflow'),
+    mailparser: await canImport('mailparser'),
   };
 
   // Only try validating the encryption key if the caller looks like localhost
@@ -70,6 +70,18 @@ function safeCanLoad(mod) {
   try {
     require.resolve(mod);
     return true;
+  } catch {
+    return false;
+  }
+}
+
+async function canImport(mod) {
+  try {
+    // Dynamic import works with Next.js bundling; require.resolve does not.
+    // We just care whether the module resolves — we don't hold the reference.
+    if (mod === 'imapflow') { await import('imapflow'); return true; }
+    if (mod === 'mailparser') { await import('mailparser'); return true; }
+    return false;
   } catch {
     return false;
   }
