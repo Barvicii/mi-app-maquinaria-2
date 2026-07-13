@@ -89,10 +89,11 @@ export async function POST(request) {
 }
 
 export async function OPTIONS() {
+  const allowedOrigin = process.env.NEXTAUTH_URL || 'http://localhost:3000';
   return NextResponse.json({}, { 
     status: 200,
     headers: {
-      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Origin': allowedOrigin,
       'Access-Control-Allow-Methods': 'POST, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type',
     }

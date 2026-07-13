@@ -1,9 +1,16 @@
-$ServerUser = "facundob"
-$ServerIP = "192.168.0.221"
-$ServerPass = "Facundo1" # Solo como recordatorio, SSH pedirá la contraseña
-$RemotePath = "~/maquinaria-app"
-$AppPort = "3010"
-$MongoPort = "27020"
+param(
+    [Parameter(Mandatory=$true)]
+    [string]$ServerUser,
+    
+    [Parameter(Mandatory=$true)]
+    [string]$ServerIP,
+    
+    [string]$RemotePath = "~/maquinaria-app",
+    [string]$AppPort = "3010",
+    [string]$MongoPort = "27020"
+)
+
+# SSH key-based auth recommended. No passwords stored in scripts.
 
 # Asegurar que estamos en el directorio del script y sincronizar entorno .NET
 if ($PSScriptRoot) {
@@ -14,8 +21,8 @@ Write-Host "Directorio de trabajo: $PWD"
 
 Write-Host "=================================================="
 Write-Host "Iniciando despliegue a $ServerUser@$ServerIP"
-Write-Host "IMPORTANTE: La contraseña es: $ServerPass"
 Write-Host "Puertos a usar: App=$AppPort, Mongo=$MongoPort"
+Write-Host "Asegurate de tener SSH key configurada o te pedira la contrasena."
 Write-Host "=================================================="
 
 # 0. Verificar puertos (Intento básico)
@@ -61,6 +68,10 @@ function Retry-Command {
 
 # 2. Copiar archivos de configuración
 Write-Host "Copiando configuraciones..."
+if (-not (Test-Path ".env.docker")) {
+    Write-Error "No se encontro .env.docker. Copia .env.docker.example a .env.docker y completa los valores."
+    exit 1
+}
 Retry-Command "scp docker-compose.yml .env.docker `"$ServerUser@${ServerIP}:$RemotePath/`""
 
 # 3. Empaquetar aplicación (excluyendo node_modules y .next para velocidad)

@@ -8,9 +8,9 @@ export async function POST(request) {
     
     // Check authorization header for security
     const authHeader = request.headers.get('authorization');
-    const expectedToken = process.env.CRON_SECRET_TOKEN || 'default-secret';
+    const expectedToken = process.env.CRON_SECRET_TOKEN;
     
-    if (authHeader !== `Bearer ${expectedToken}`) {
+    if (!expectedToken || authHeader !== `Bearer ${expectedToken}`) {
       console.log('[CRON] Unauthorized service reminder check attempt');
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }

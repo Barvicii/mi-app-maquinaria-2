@@ -13,15 +13,22 @@ services:
       - .env
     depends_on:
       - mongo
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
   mongo:
-    image: mongo:latest
+    image: mongo:7
     container_name: maquinaria-mongo
     restart: always
     ports:
       - "${MONGO_PORT:-27018}:27017"
     volumes:
       - mongo-data:/data/db
+    command: ["mongod", "--quiet"]
 
 volumes:
   mongo-data:
