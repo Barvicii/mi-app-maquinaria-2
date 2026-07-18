@@ -92,14 +92,37 @@ export async function pollMailbox({
 
     for (const uid of toProcess) {
       try {
-        // Download the raw RFC-822 source for accurate MIME parsing
-        const download = await client.download(uid, undefined, { uid: true });
-        if (!download || !download.content) {
-          result.errors.push({ uid, error: 'No content returned' });
+        // Fetch the raw RFC-822 source. `fetchOne` with `{source:true}` is the
+        // right ImapFlow API for this — `download()` is for MIME parts /
+        // attachments and returns { content } as a stream (not always accepted
+        // by simpleParser). Stream sources fall back to buffering below.
+        let source = null;
+        try {
+          const msg = await client.fetchOne(uid, { source: true }, { uid: true });
+          source = msg && msg.source ? msg.source : null;
+        } catch (fetchErr) {
+          console.warn(`[imap] fetchOne failed for uid=${uid}: ${fetchErr.message}`);
+        }
+
+        // Fallback: try download() and buffer its stream if fetchOne came back empty
+        if (!source) {
+          try {
+            const dl = await client.download(uid, undefined, { uid: true });
+            if (dl?.content) {
+              source = await streamToBuffer(dl.content);
+            }
+          } catch (dlErr) {
+            console.warn(`[imap] download fallback failed for uid=${uid}: ${dlErr.message}`);
+          }
+        }
+
+        if (!source) {
+          result.errors.push({ uid, error: 'IMAP returned no source for message (both fetchOne and download failed)' });
           continue;
         }
 
-        const parsed = await simpleParser(download.content);
+        // simpleParser accepts Buffer, string or Stream
+        const parsed = await simpleParser(source);
         const attachments = (parsed.attachments || []).map((a) => ({
           filename: a.filename || null,
           contentType: a.contentType || null,
@@ -194,4 +217,22 @@ function formatAddress(addr) {
       .join(', ');
   }
   return '';
+}
+
+/**
+ * Buffer a Node.js Readable stream into a single Buffer. Used as a fallback
+ * when ImapFlow returns the RFC-822 source as a stream instead of a Buffer.
+ */
+async function streamToBuffer(stream) {
+  if (!stream) return null;
+  if (Buffer.isBuffer(stream)) return stream;
+  if (typeof stream === 'string') return Buffer.from(stream, 'utf8');
+  if (stream instanceof Uint8Array) return Buffer.from(stream);
+  if (typeof stream.on !== 'function') return null;
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    stream.on('data', (chunk) => chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)));
+    stream.on('end', () => resolve(Buffer.concat(chunks)));
+    stream.on('error', reject);
+  });
 }
