@@ -3,109 +3,72 @@ import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/api/auth/[...nextauth]/route';
 import { connectDB } from "@/lib/mongodb";
 import { ObjectId } from 'mongodb';
+import { buildOrgScopeFilter, isSuperAdmin } from '@/lib/scopeFilter';
 
 export async function GET(request) {
   try {
     console.log('[API] GET /api/dashboard/metrics');
-    
+
     // Obtener sesión del usuario
     const session = await getServerSession(authOptions);
-    
-    // Para debug: permitir acceso sin autenticación con datos completos
-    let userId, credentialId, isAdmin;
-    
+
     if (!session) {
-      console.log('[API] No session found - using debug mode with admin privileges');
-      isAdmin = true; // Para debug, dar permisos de admin
-      userId = null;
-      credentialId = null;
-    } else {
-      userId = session.user.id;
-      credentialId = session.user.credentialId;
-      isAdmin = session.user.role === 'ADMIN' || session.user.role === 'SUPER_ADMIN';
+      // No permitir métricas sin sesión (antes había un modo "debug" que
+      // devolvía TODAS las orgs — inseguro para multi-tenant).
+      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     }
-    
-    console.log(`[API] Dashboard metrics - User: ${userId || 'debug'}, Admin: ${isAdmin}, CredentialId: ${credentialId || 'none'}`);
-    
+
+    const userId = session.user.id;
+    const userOrganization = session.user.organization || session.user.company || null;
+    const superAdmin = isSuperAdmin(session);
+
+    console.log(`[API] Dashboard metrics - User: ${userId}, Role: ${session.user.role}, Organization: ${userOrganization || 'none'}, SuperAdmin: ${superAdmin}`);
+
     // Conectar a la base de datos
     const db = await connectDB();
-    
-    // Preparar consulta base basada en credenciales del usuario
-    let baseQuery = {};
-    
-    // Solo filtrar si no es admin y hay sesión
-    if (!isAdmin && session) {
-      // Consulta base que funciona con todos los modelos
-      baseQuery = {
-        $or: [
-          { userId: userId },
-          { userId: ObjectId.isValid(userId) ? new ObjectId(userId) : null },
-          { createdBy: userId },
-          { createdBy: ObjectId.isValid(userId) ? new ObjectId(userId) : null }
-        ].filter(q => Object.values(q).every(v => v !== null))
-      };
-      
-      // Añadir credentialId a la consulta si está disponible
-      if (credentialId) {
-        baseQuery.$or.push({ credentialId: credentialId });
-      }
-      
-      // Incluir también elementos creados por "public_user" que estén asociados a máquinas del usuario
-      const userMachines = await db.collection('machines')
-        .find({ userId: userId })
-        .project({ _id: 1 })
-        .toArray();
-        
-      if (userMachines.length > 0) {
-        const machineIds = userMachines.map(m => m._id.toString());
-        baseQuery.$or.push({ 
-          userId: "public_user", 
-          maquinaId: { $in: machineIds } 
-        });
-      }
-      
-      console.log('[API] Base query for non-admin:', JSON.stringify(baseQuery));
-    } else {
-      console.log('[API] Admin user or debug mode - returning all metrics');
-    }
-    
+
+    // Build scope filter — respects role. SUPER_ADMIN sees everything;
+    // ADMIN with org sees the whole org; everyone else sees only their own.
+    // Consistent with /api/machines and /api/vehicles.
+    const baseQuery = buildOrgScopeFilter(session);
+    console.log('[API] Dashboard base scope filter:', JSON.stringify(baseQuery));
+
     // Obtener contadores para cada colección correctamente - con manejo de errores
     let machinesCount = 0;
     let operatorsCount = 0;
     let servicesCount = 0;
     let prestartCount = 0;
-    
+
     try {
       machinesCount = await db.collection('machines').countDocuments(baseQuery);
     } catch (error) {
       console.log('[API] Error counting machines:', error.message);
       machinesCount = 0;
     }
-    
+
     try {
       operatorsCount = await db.collection('operators').countDocuments(baseQuery);
     } catch (error) {
       console.log('[API] Operators collection not found or error:', error.message);
       operatorsCount = 0;
     }
-    
+
     try {
       prestartCount = await db.collection('prestart').countDocuments(baseQuery);
     } catch (error) {
       console.log('[API] Error counting prestarts:', error.message);
       prestartCount = 0;
     }
-    
+
     // Contar servicios pendientes correctamente (valores positivos)
     let pendingServicesCount = 0;
     
     try {
-      // Preparar consulta para servicios
-      const servicesQuery = isAdmin ? {} : baseQuery;
-      servicesCount = await db.collection('services').countDocuments(servicesQuery);
-      
+      // Services always use the same scope filter (no admin bypass).
+      servicesCount = await db.collection('services').countDocuments(baseQuery);
+
       pendingServicesCount = await db.collection('services').countDocuments({
-        ...servicesQuery,
+        ...baseQuery,
         status: { $in: ['Pending', 'Pendiente'] }
       });
     } catch (error) {
@@ -122,7 +85,7 @@ export async function GET(request) {
     let recentPrestarts = [];
     
     try {
-      const servicesQuery = isAdmin ? {} : baseQuery;
+      const servicesQuery = baseQuery;
       recentServices = await db.collection('services')
         .find(servicesQuery)
         .sort({ createdAt: -1 })
@@ -195,13 +158,14 @@ export async function GET(request) {
     // MÉTRICAS DE DIESEL MEJORADAS - Información por tanque individual
     
     // 1. Obtener todos los tanques del usuario con detalles completos
-    const dieselTanksQuery = isAdmin ? {} : {
+    // Diesel tanks are scoped like everything else. superAdmin sees all.
+    const dieselTanksQuery = superAdmin ? {} : {
       $or: [
+        ...(userOrganization ? [{ organization: userOrganization }] : []),
         { userId: userId },
         { userId: ObjectId.isValid(userId) ? new ObjectId(userId) : null },
         { createdBy: userId },
         { createdBy: ObjectId.isValid(userId) ? new ObjectId(userId) : null },
-        ...(credentialId ? [{ credentialId: credentialId }] : [])
       ].filter(q => Object.values(q).every(v => v !== null))
     };
     

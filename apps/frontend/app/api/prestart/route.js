@@ -5,6 +5,7 @@ import { authOptions } from "../auth/[...nextauth]/route";
 import { ObjectId } from "mongodb";
 import { checkPrestartStatus } from "@/lib/alertService";
 import { sanitizeInput, createSafeRegexQuery } from "@/lib/security";
+import { buildOrgScopeFilter, isSuperAdmin } from "@/lib/scopeFilter";
 
 // Helper function to check organization suspension
 const checkOrganizationSuspension = (session) => {
@@ -219,13 +220,13 @@ export async function GET(request) {
     const machineId = searchParams.get('machineId');
     const workplace = searchParams.get('workplace');
     
+    let session = null;
     let userId = null;
-    let credentialId = null;
     let isAdmin = false;
     
     // Si no es acceso público, verificar autenticación
     if (!isPublic) {
-      const session = await getServerSession(authOptions);
+      session = await getServerSession(authOptions);
       if (!session) {
         return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
       }
@@ -236,33 +237,20 @@ export async function GET(request) {
         return suspensionCheck;
       }
       
-      // Get user credentials
       userId = session.user.id;
+      // Kept for the enrichment logic below that only runs for admins.
       isAdmin = session.user.role === 'SUPER_ADMIN' || session.user.role === 'ADMIN';
-      
-      if (session.user.credentialId) {
-        credentialId = session.user.credentialId;
-        // Check if it's already an ObjectId or needs conversion
-        if (typeof credentialId === 'string') {
-          credentialId = new ObjectId(credentialId);
-        }
-      }
     }
     
     const db = await connectDB();
     
-    // Build query with credential filtering
+    // Build the scope filter — enforces multi-tenant isolation. Super admins
+    // still see everything; ADMIN with an organization sees the org; regular
+    // users see only their own.
     let query = {};
-    
-    // Filter by credential ID if not admin and not public
-    if (!isPublic && !isAdmin && credentialId) {
-      query.credentialId = credentialId;
-    } else if (!isPublic && !isAdmin && userId) {
-      // Fallback to userId if no credentialId
-      query.userId = userId;
-    } else if (!isPublic && isAdmin) {
-      // Para admins, no filtrar en la consulta inicial - aplicaremos filtro después del enriquecimiento
-      console.log(`[API] Admin access detected - will enrich all prestarts with user data`);
+    if (!isPublic) {
+      query = buildOrgScopeFilter(session);
+      console.log('[API] Prestart scope filter:', JSON.stringify(query));
     }
     // Para acceso público, no aplicar filtros de usuario
     
@@ -324,30 +312,20 @@ export async function GET(request) {
       conditions.push(machineQuery);
     }
     
-    // Combinar todas las condiciones
-    if (conditions.length > 1) {
-      query.$and = conditions;
-    } else if (conditions.length === 1) {
-      query = conditions[0];
-    }
-    
-    // Solo para usuarios no-admin, aplicar filtro de usuario adicional
-    if (!isPublic && !isAdmin && userId && !credentialId && machineId) {
-      // Si ya hay condiciones, agregar el filtro de usuario
-      const userCondition = { userId: userId };
-      
-      if (query.$and) {
-        query.$and.push(userCondition);
-      } else {
-        query = {
-          $and: [
-            query,
-            userCondition
-          ]
-        };
+    // Combinar todas las condiciones — el filtro de scope ya se aplicó al
+    // construir `query`. Aquí solo mezclamos condiciones extra (date range,
+    // machine filter) manteniendo el scope como un $and.
+    if (conditions.length > 0) {
+      const scopeOnly = Object.keys(query).length > 0 ? [query] : [];
+      const combined = [...scopeOnly, ...conditions];
+      if (combined.length === 1) {
+        query = combined[0];
+      } else if (combined.length > 1) {
+        query = { $and: combined };
       }
     }
-      console.log("PreStart query with filters:", JSON.stringify(query));
+
+    console.log("PreStart query with filters:", JSON.stringify(query));
     
     let prestarts = await db.collection('prestart')
       .find(query)

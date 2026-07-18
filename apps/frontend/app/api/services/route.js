@@ -3,6 +3,7 @@ import { authOptions } from "../auth/[...nextauth]/route";
 import { ObjectId } from 'mongodb';
 import { NextResponse } from 'next/server';
 import { connectDB } from "@/lib/mongodb";
+import { buildOrgScopeFilter, isSuperAdmin } from "@/lib/scopeFilter";
 
 // Helper function to check organization suspension
 const checkOrganizationSuspension = (session) => {
@@ -27,17 +28,20 @@ export async function GET(request) {
     const status = searchParams.get('status');
     const workplace = searchParams.get('workplace');
     
+    let session = null;
     let userId = null;
     let isAdmin = false;
-    
+    let superAdmin = false;
+
     if (!isPublic) {
       try {
-        const session = await getServerSession(authOptions);
-        
+        session = await getServerSession(authOptions);
+
         if (session && session.user) {
           userId = session.user.id;
           isAdmin = session.user.role === 'ADMIN' || session.user.role === 'SUPER_ADMIN';
-          console.log(`[API] Authenticated user: ${userId}, Admin: ${isAdmin}`);
+          superAdmin = isSuperAdmin(session);
+          console.log(`[API] Authenticated user: ${userId}, Role: ${session.user.role}, Admin: ${isAdmin}, SuperAdmin: ${superAdmin}`);
         }
       } catch (err) {
         console.error('[API] Error checking session:', err);
@@ -86,6 +90,7 @@ export async function GET(request) {
     }
     
     // Si no es admin, filtrar por usuario
+    // (Kept behavior for personal-scope users.)
     if (!isAdmin && userId) {
       console.log('[API] Filtering services by user credentials:', userId);
       
@@ -145,6 +150,42 @@ export async function GET(request) {
       }
       
       console.log('[API] Final query:', JSON.stringify(query, null, 2));
+    } else if (isAdmin && !superAdmin && session) {
+      // ADMIN with org → scope to org (matches /api/machines behavior).
+      // Previously this branch returned every service in the DB, leaking
+      // other organizations' data. Now we scope to the admin's org, plus
+      // services attached to any machine in that org.
+      const scope = buildOrgScopeFilter(session, { userFields: ['machineCreatorId'] });
+
+      // Also include services tied to machines belonging to this org, since
+      // some services don't carry `organization` themselves.
+      const orgMachines = await db.collection('machines').find(
+        buildOrgScopeFilter(session)
+      ).project({ _id: 1, machineId: 1, customId: 1 }).toArray();
+
+      const orgMachineIds = orgMachines
+        .map(m => [m._id.toString(), m.machineId, m.customId].filter(Boolean))
+        .flat();
+
+      const orClauses = [scope];
+      if (orgMachineIds.length > 0) {
+        orClauses.push({
+          $or: [
+            { machineId: { $in: orgMachineIds } },
+            { maquinaId: { $in: orgMachineIds } },
+            { 'datos.machineId': { $in: orgMachineIds } },
+            { 'datos.maquinaId': { $in: orgMachineIds } },
+            { customId: { $in: orgMachineIds } },
+            { 'datos.customId': { $in: orgMachineIds } }
+          ]
+        });
+      }
+
+      const finalScope = orClauses.length === 1 ? orClauses[0] : { $or: orClauses };
+      query = Object.keys(query).length > 0 ? { $and: [query, finalScope] } : finalScope;
+      console.log('[API] Admin scoped query:', JSON.stringify(query));
+    } else if (superAdmin) {
+      console.log('[API] SUPER_ADMIN — returning all services (no scope filter).');
     }
     
     const services = await db.collection('services')
