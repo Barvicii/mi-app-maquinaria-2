@@ -107,14 +107,27 @@ export default function InvoiceSettings({ suppressNotifications = false }) {
         body: JSON.stringify(settings),
       });
 
+      const data = await res.json().catch(() => ({}));
+
       if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || 'Failed to save settings');
+        throw new Error(data.error || `Failed to save settings (HTTP ${res.status})`);
       }
 
-      setSuccess('Settings saved successfully');
+      // Build a friendly summary of what actually got saved
+      const savedFields = Array.isArray(data.savedFields) ? data.savedFields : [];
+      const upserted = data.upserted > 0;
+      const modified = data.modified > 0;
+      let msg;
+      if (upserted) {
+        msg = `Settings created (${savedFields.length} field${savedFields.length === 1 ? '' : 's'} saved).`;
+      } else if (modified) {
+        msg = `Settings updated (${savedFields.length} field${savedFields.length === 1 ? '' : 's'} changed).`;
+      } else {
+        msg = 'Nothing to update — values already matched what was stored.';
+      }
+      setSuccess(msg);
       setIsDefault(false);
-      setTimeout(() => setSuccess(null), 4000);
+      setTimeout(() => setSuccess(null), 6000);
       // Refresh so masked fields and resolvedImap come back with fresh state
       fetchSettings();
     } catch (err) {
@@ -353,8 +366,14 @@ export default function InvoiceSettings({ suppressNotifications = false }) {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Email App Password
+              <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center justify-between">
+                <span>Email App Password</span>
+                {settings.invoiceEmailPassword === MASKED && (
+                  <span className="inline-flex items-center gap-1 text-xs font-normal text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-full px-2 py-0.5">
+                    <CheckCircle size={12} />
+                    Saved (encrypted)
+                  </span>
+                )}
               </label>
               <div className="relative">
                 <input
@@ -362,7 +381,7 @@ export default function InvoiceSettings({ suppressNotifications = false }) {
                   value={settings.invoiceEmailPassword || ''}
                   onChange={(e) => handleChange('invoiceEmailPassword', e.target.value)}
                   className="w-full border rounded-lg px-3 py-2.5 text-sm pr-10"
-                  placeholder={hasPassword && settings.invoiceEmailPassword === MASKED ? 'Leave as is to keep current password' : 'Paste your app password'}
+                  placeholder={hasPassword && settings.invoiceEmailPassword === MASKED ? 'Password already saved — type a new one only if you want to replace it' : 'Paste your app password'}
                 />
                 <button
                   type="button"
@@ -373,8 +392,10 @@ export default function InvoiceSettings({ suppressNotifications = false }) {
                 </button>
               </div>
               <p className="text-xs text-gray-400 mt-1">
-                Stored encrypted (AES-256-GCM) in the database. For Gmail/Outlook/Yahoo/iCloud you must
-                use an App Password — your normal login password will NOT work over IMAP.
+                {settings.invoiceEmailPassword === MASKED
+                  ? <span>The password is stored encrypted (AES-256-GCM). Leave this field with dots to keep it. Type a new password to replace it.</span>
+                  : <span>Stored encrypted (AES-256-GCM) in the database. For Gmail/Outlook/Yahoo/iCloud you must use an App Password — your normal login password will NOT work over IMAP.</span>
+                }
               </p>
             </div>
 

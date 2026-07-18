@@ -46,11 +46,12 @@ export async function GET(request) {
     let settings = null;
 
     if (orgId) {
+      const orFilters = [{ organizationId: orgId }];
+      if (typeof orgId === 'string' && ObjectId.isValid(orgId)) {
+        orFilters.push({ organizationId: new ObjectId(orgId) });
+      }
       settings = await db.collection('organizationSettings').findOne({
-        $or: [
-          { organizationId: orgId },
-          { organizationId: new ObjectId(orgId) },
-        ]
+        $or: orFilters,
       });
     }
 
@@ -193,9 +194,28 @@ export async function PUT(request) {
     updateData.updatedBy = session.user.id;
 
     // Upsert: create if not exists
-    const filter = orgId
-      ? { $or: [{ organizationId: orgId }, { organizationId: new ObjectId(orgId) }] }
-      : { organization: orgName };
+    let filter;
+    if (orgId) {
+      const orFilters = [{ organizationId: orgId }];
+      if (typeof orgId === 'string' && ObjectId.isValid(orgId)) {
+        orFilters.push({ organizationId: new ObjectId(orgId) });
+      }
+      filter = { $or: orFilters };
+    } else if (orgName) {
+      filter = { organization: orgName };
+    } else {
+      return NextResponse.json(
+        { error: 'Cannot determine organization scope. Session missing credentialId and organization.' },
+        { status: 400 }
+      );
+    }
+
+    console.log('[OrgSettings PUT]', {
+      orgId,
+      orgName,
+      fieldsToSet: Object.keys(updateData),
+      encryptedFieldsIncluded: Object.keys(updateData).filter((k) => ENCRYPTED_FIELDS.has(k)),
+    });
 
     const result = await db.collection('organizationSettings').updateOne(
       filter,
@@ -211,10 +231,19 @@ export async function PUT(request) {
       { upsert: true }
     );
 
-    return NextResponse.json({
-      message: 'Settings updated successfully',
+    console.log('[OrgSettings PUT] result', {
+      matched: result.matchedCount,
       modified: result.modifiedCount,
       upserted: result.upsertedCount,
+      upsertedId: result.upsertedId ? String(result.upsertedId) : null,
+    });
+
+    return NextResponse.json({
+      message: 'Settings updated successfully',
+      matched: result.matchedCount,
+      modified: result.modifiedCount,
+      upserted: result.upsertedCount,
+      savedFields: Object.keys(updateData).filter((k) => k !== 'updatedAt' && k !== 'updatedBy'),
     });
   } catch (error) {
     console.error('Error updating org settings:', error);
