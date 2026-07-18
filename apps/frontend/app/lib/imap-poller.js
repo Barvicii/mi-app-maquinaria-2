@@ -131,7 +131,8 @@ export async function pollMailbox({
           }
         }
       } catch (err) {
-        result.errors.push({ uid, error: err.message });
+        console.error(`[imap] onMessage failed for uid=${uid} subject="${(typeof email !== 'undefined' && email?.subject) || 'n/a'}": ${err.message}`, err.stack);
+        result.errors.push({ uid, subject: (typeof email !== 'undefined' ? email?.subject : null) || null, error: err.message });
       }
     }
   } finally {

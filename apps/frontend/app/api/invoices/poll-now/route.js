@@ -103,10 +103,22 @@ export async function POST(request) {
         markSeen: true,
         socketTimeoutMs: SOCKET_TIMEOUT_MS,
         onMessage: async (email) => {
-          const outcome = await processOne(db, email, org);
-          if (outcome.status === 'created') created.push(outcome);
-          else if (outcome.status === 'skipped') skipped.push(outcome);
-          else errors.push(outcome);
+          try {
+            const outcome = await processOne(db, email, org);
+            if (outcome.status === 'created') created.push(outcome);
+            else if (outcome.status === 'skipped') skipped.push(outcome);
+            else errors.push(outcome);
+          } catch (err) {
+            console.error('[PollNow] processOne threw for uid', email.uid, 'subject:', email.subject, 'error:', err.message, err.stack);
+            errors.push({
+              status: 'error',
+              uid: email.uid,
+              messageId: email.messageId,
+              from: email.from,
+              subject: email.subject,
+              error: err.message,
+            });
+          }
         },
       });
 

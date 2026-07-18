@@ -34,6 +34,10 @@ export default function InvoiceSettings({ suppressNotifications = false }) {
   const [showWaToken, setShowWaToken] = useState(false);
   const [showCronSecret, setShowCronSecret] = useState(false);
 
+  // Track the original email so we can warn when the user changes it while
+  // keeping the (now-stale) stored password.
+  const [originalEmail, setOriginalEmail] = useState('');
+
   const fetchSettings = useCallback(async () => {
     try {
       setLoading(true);
@@ -45,6 +49,7 @@ export default function InvoiceSettings({ suppressNotifications = false }) {
       setIsDefault(data.isDefault);
       setDetectedProvider(data.detectedProvider || null);
       setResolvedImap(data.resolvedImap || null);
+      setOriginalEmail(data.settings?.invoiceEmail || '');
       setLastPollInfo({
         at: data.lastEmailPollAt || null,
         error: data.lastEmailPollError || null,
@@ -191,6 +196,15 @@ export default function InvoiceSettings({ suppressNotifications = false }) {
     const p = settings?.invoiceEmailPassword;
     return !!p && p !== '';
   }, [settings?.invoiceEmailPassword]);
+
+  // Warn if user edited the invoice email but kept the previous encrypted
+  // password (which was tied to the OLD email and will fail auth).
+  const emailChangedButPasswordUntouched = useMemo(() => {
+    if (!originalEmail) return false;
+    const current = String(settings?.invoiceEmail || '').trim().toLowerCase();
+    const original = originalEmail.trim().toLowerCase();
+    return current && current !== original && settings?.invoiceEmailPassword === MASKED;
+  }, [originalEmail, settings?.invoiceEmail, settings?.invoiceEmailPassword]);
 
   if (loading) {
     return (
@@ -368,13 +382,30 @@ export default function InvoiceSettings({ suppressNotifications = false }) {
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center justify-between">
                 <span>Email App Password</span>
-                {settings.invoiceEmailPassword === MASKED && (
+                {settings.invoiceEmailPassword === MASKED && !emailChangedButPasswordUntouched && (
                   <span className="inline-flex items-center gap-1 text-xs font-normal text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-full px-2 py-0.5">
                     <CheckCircle size={12} />
                     Saved (encrypted)
                   </span>
                 )}
+                {emailChangedButPasswordUntouched && (
+                  <span className="inline-flex items-center gap-1 text-xs font-normal text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5">
+                    <AlertCircle size={12} />
+                    Password is stale
+                  </span>
+                )}
               </label>
+              {emailChangedButPasswordUntouched && (
+                <div className="mb-2 text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 flex items-start gap-2">
+                  <AlertCircle size={14} className="mt-0.5 flex-shrink-0" />
+                  <span>
+                    You changed the email from <code className="bg-white px-1 rounded border">{originalEmail}</code> to{' '}
+                    <code className="bg-white px-1 rounded border">{settings.invoiceEmail}</code>, but the stored password
+                    was for the previous account. <strong>Enter a new app password below</strong> or the poller will fail
+                    authentication.
+                  </span>
+                </div>
+              )}
               <div className="relative">
                 <input
                   type={showEmailPass ? 'text' : 'password'}
@@ -449,7 +480,7 @@ export default function InvoiceSettings({ suppressNotifications = false }) {
 
             {/* Poll result */}
             {pollResult && (
-              <div className={`text-xs rounded-lg px-3 py-2 border ${pollResult.ok ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-red-50 border-red-200 text-red-700'}`}>
+              <div className={`text-xs rounded-lg px-3 py-2 border ${pollResult.ok ? (pollResult.errors?.length > 0 ? 'bg-amber-50 border-amber-200 text-amber-800' : 'bg-emerald-50 border-emerald-200 text-emerald-700') : 'bg-red-50 border-red-200 text-red-700'}`}>
                 {pollResult.ok ? (
                   <div>
                     Fetched <strong>{pollResult.fetched ?? 0}</strong> unread — created{' '}
@@ -460,11 +491,41 @@ export default function InvoiceSettings({ suppressNotifications = false }) {
                       <ul className="mt-1 list-disc list-inside">
                         {pollResult.created.slice(0, 5).map((c, i) => (
                           <li key={i}>
-                            {c.invoiceId} — {c.vendor} — {c.amount ?? '?'} —{' '}
+                            <strong>{c.invoiceId}</strong> — {c.vendor} — {c.amount ?? '?'} —{' '}
                             {c.machineAssigned ? `assigned to ${c.machineName}` : 'unassigned'}
                           </li>
                         ))}
                       </ul>
+                    )}
+                    {pollResult.skipped?.length > 0 && (
+                      <ul className="mt-1 list-disc list-inside text-gray-600">
+                        {pollResult.skipped.slice(0, 5).map((s, i) => (
+                          <li key={i}>
+                            Skipped: {s.invoiceId || s.messageId || 'email'} ({s.reason || 'unknown'})
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                    {pollResult.errors?.length > 0 && (
+                      <div className="mt-2 pt-2 border-t border-current border-opacity-20">
+                        <div className="font-semibold mb-1 flex items-center gap-1">
+                          <AlertCircle size={12} />
+                          Errors ({pollResult.errors.length}):
+                        </div>
+                        <ul className="list-disc list-inside space-y-1">
+                          {pollResult.errors.slice(0, 5).map((e, i) => (
+                            <li key={i} className="break-words">
+                              {e.subject && <strong>&quot;{e.subject}&quot;</strong>}
+                              {e.subject && ' — '}
+                              <span className="font-mono text-[11px]">{e.error || 'Unknown error'}</span>
+                              {e.uid && <span className="text-gray-500"> (uid={e.uid})</span>}
+                            </li>
+                          ))}
+                        </ul>
+                        {pollResult.errors.length > 5 && (
+                          <div className="text-gray-500 mt-1">…and {pollResult.errors.length - 5} more</div>
+                        )}
+                      </div>
                     )}
                   </div>
                 ) : (
