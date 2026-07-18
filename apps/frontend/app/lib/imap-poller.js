@@ -81,8 +81,12 @@ export async function pollMailbox({
 
   try {
     const since = new Date(Date.now() - sinceDays * 24 * 60 * 60 * 1000);
-    const searchResult = await client.search({ seen: false, since });
+    // IMPORTANT: pass `{ uid: true }` so ImapFlow returns UIDs (stable across
+    // sessions), not sequence numbers. Every downstream call (fetchOne,
+    // messageFlagsAdd) uses `{ uid: true }` and expects UIDs.
+    const searchResult = await client.search({ seen: false, since }, { uid: true });
     const uids = Array.isArray(searchResult) ? searchResult : [];
+    console.log(`[imap] search returned ${uids.length} UIDs: ${uids.slice(0, 10).join(',')}`);
     result.fetched = uids.length;
 
     if (uids.length === 0) return result;
