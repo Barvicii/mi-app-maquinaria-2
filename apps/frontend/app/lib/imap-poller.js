@@ -169,6 +169,12 @@ export async function pollMailbox({
           contentBase64: a.content ? Buffer.from(a.content).toString('base64') : null,
         }));
 
+        // Try to extract text from PDF attachments and append it to the body,
+        // so the invoice parser can find machine IDs / amounts printed inside
+        // the PDF (this covers ~90% of vendor invoices).
+        const extractedFromAttachments = await extractTextFromAttachments(parsed.attachments || []);
+        const textBody = [parsed.text || '', extractedFromAttachments].filter(Boolean).join('\n\n');
+
         const email = {
           uid,
           messageId: parsed.messageId || null,
@@ -176,9 +182,10 @@ export async function pollMailbox({
           to: formatAddress(parsed.to),
           subject: parsed.subject || '',
           date: parsed.date || null,
-          textBody: parsed.text || '',
+          textBody,
           htmlBody: parsed.html || '',
           attachments,
+          attachmentTextLength: extractedFromAttachments.length,
         };
 
         await onMessage(email);
@@ -274,4 +281,43 @@ async function streamToBuffer(stream) {
     stream.on('end', () => resolve(Buffer.concat(chunks)));
     stream.on('error', reject);
   });
+}
+
+/**
+ * Extract plain text from PDF attachments so the invoice parser can find
+ * machine IDs / amounts / invoice numbers that only appear inside the PDF.
+ *
+ * Uses `unpdf` (serverless-friendly, no native deps). Silently skips images,
+ * Word docs and anything else — those would need OCR.
+ *
+ * @param {Array} attachments — mailparser attachment objects
+ * @returns {Promise<string>} concatenated text, or '' if nothing extractable
+ */
+async function extractTextFromAttachments(attachments) {
+  if (!Array.isArray(attachments) || attachments.length === 0) return '';
+
+  const chunks = [];
+  for (const att of attachments) {
+    if (!att || !att.content) continue;
+    const type = (att.contentType || '').toLowerCase();
+    const filename = att.filename || '';
+    const isPdf = type.includes('pdf') || /\.pdf$/i.test(filename);
+    if (!isPdf) continue;
+
+    try {
+      // Lazy-import so unpdf is only pulled when a PDF actually arrives
+      const { extractText, getDocumentProxy } = await import('unpdf');
+      const buffer = Buffer.isBuffer(att.content) ? att.content : Buffer.from(att.content);
+      const pdf = await getDocumentProxy(new Uint8Array(buffer));
+      const { text } = await extractText(pdf, { mergePages: true });
+      const cleaned = String(text || '').replace(/\s+/g, ' ').trim();
+      if (cleaned) {
+        chunks.push(`\n[PDF: ${filename || 'unnamed.pdf'}]\n${cleaned}`);
+        console.log(`[imap] Extracted ${cleaned.length} chars from PDF "${filename}"`);
+      }
+    } catch (err) {
+      console.warn(`[imap] Failed to extract PDF "${filename}": ${err.message}`);
+    }
+  }
+  return chunks.join('\n');
 }
