@@ -92,34 +92,69 @@ export async function pollMailbox({
 
     for (const uid of toProcess) {
       try {
-        // Fetch the raw RFC-822 source. `fetchOne` with `{source:true}` is the
-        // right ImapFlow API for this — `download()` is for MIME parts /
-        // attachments and returns { content } as a stream (not always accepted
-        // by simpleParser). Stream sources fall back to buffering below.
+        console.log(`[imap] Processing uid=${uid} (host=${host})`);
+
+        // Method 1: fetchOne with { source: true } — the canonical way to
+        // get the raw RFC-822 message in ImapFlow.
         let source = null;
+        let fetchMethodUsed = null;
+        let fetchOneKeys = null;
         try {
-          const msg = await client.fetchOne(uid, { source: true }, { uid: true });
-          source = msg && msg.source ? msg.source : null;
+          const msg = await client.fetchOne(String(uid), { source: true }, { uid: true });
+          fetchOneKeys = msg && typeof msg === 'object' ? Object.keys(msg) : String(msg);
+          if (msg && msg.source) {
+            source = msg.source;
+            fetchMethodUsed = 'fetchOne';
+          } else {
+            console.warn(`[imap] uid=${uid} fetchOne returned no .source. Keys: ${JSON.stringify(fetchOneKeys)}`);
+          }
         } catch (fetchErr) {
-          console.warn(`[imap] fetchOne failed for uid=${uid}: ${fetchErr.message}`);
+          console.warn(`[imap] uid=${uid} fetchOne threw: ${fetchErr.message}`);
         }
 
-        // Fallback: try download() and buffer its stream if fetchOne came back empty
+        // Method 2: async generator fetch() — sometimes works when fetchOne
+        // returns without a source (varies by IMAP server implementation).
         if (!source) {
           try {
-            const dl = await client.download(uid, undefined, { uid: true });
+            for await (const msg of client.fetch(String(uid), { source: true }, { uid: true })) {
+              if (msg && msg.source) {
+                source = msg.source;
+                fetchMethodUsed = 'fetch(generator)';
+                break;
+              }
+            }
+            if (!source) {
+              console.warn(`[imap] uid=${uid} async fetch() also returned no .source`);
+            }
+          } catch (genErr) {
+            console.warn(`[imap] uid=${uid} async fetch() threw: ${genErr.message}`);
+          }
+        }
+
+        // Method 3: download() streamed to a buffer — legacy fallback.
+        if (!source) {
+          try {
+            const dl = await client.download(String(uid), undefined, { uid: true });
             if (dl?.content) {
               source = await streamToBuffer(dl.content);
+              if (source) fetchMethodUsed = 'download';
+            } else {
+              console.warn(`[imap] uid=${uid} download() returned no .content`);
             }
           } catch (dlErr) {
-            console.warn(`[imap] download fallback failed for uid=${uid}: ${dlErr.message}`);
+            console.warn(`[imap] uid=${uid} download() threw: ${dlErr.message}`);
           }
         }
 
         if (!source) {
-          result.errors.push({ uid, error: 'IMAP returned no source for message (both fetchOne and download failed)' });
+          result.errors.push({
+            uid,
+            error: `IMAP returned no source (fetchOne keys=${JSON.stringify(fetchOneKeys)}). Server may not support full-source fetch, or the message is on a different mailbox.`,
+          });
           continue;
         }
+
+        console.log(`[imap] uid=${uid} fetched via ${fetchMethodUsed}, source size=${Buffer.isBuffer(source) ? source.length : 'stream'}`);
 
         // simpleParser accepts Buffer, string or Stream
         const parsed = await simpleParser(source);
