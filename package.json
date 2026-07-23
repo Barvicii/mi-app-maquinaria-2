@@ -13,7 +13,7 @@
     "build:frontend": "npm run --workspace=frontend build",
     "start": "npm run --workspace=frontend start",
     "lint": "npm run --workspace=frontend lint",
-    "test": "npm run --workspace=frontend test",
+    "test": "npm run --workspace=frontend test:e2e",
     "cypress:open": "npm run --workspace=frontend cypress:open",
     "cypress:run": "npm run --workspace=frontend cypress:run",
     "test:e2e": "npm run --workspace=frontend test:e2e",
